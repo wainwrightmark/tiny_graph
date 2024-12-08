@@ -142,45 +142,13 @@ impl Graph8 {
         }
     }
 
-    // ///Removes the first n nodes, shifting the remaining nodes into their place
-    // pub fn remove_first_n_nodes(&self, count_to_remove: u32) -> Self {
-    //     let mut u = self.as_u64();
-    //     let mask = ((u8::MAX << count_to_remove) as u64) * 0x101010101010101;
-    //     u &= mask;
-    //     u >>= 9 * count_to_remove;
-    //     Self::from_u64(u)
-    // }
-
-    // fn as_u64(&self) -> u64 {
-    //     u64::from_le_bytes(self.adjacencies.map(|x| x.inner_const()))
-    // }
-
-    // fn from_u64(value: u64) -> Self {
-    //     Self {
-    //         adjacencies: value.to_le_bytes().map(|x| BitSet8::from_inner_const(x)),
-    //     }
-    // }
-
-    // pub(crate) fn find_class_indices(&self) -> BitSet8 {
-    //     let mut seen: BTreeSet<Connections8> = Default::default();
-    //     let mut set: BitSet8 = BitSet8::EMPTY;
-    //     for index in 0..EIGHT {
-    //         let mut clone = self.clone();
-    //         clone.swap_nodes(NodeIndex(0), NodeIndex(index as u8));
-    //         if seen.insert(clone.to_connection_set()) {
-    //             set.insert(index as u32);
-    //         }
-    //     }
-
-    //     set
-    // }
-
     pub fn find_mapping_permutation(mut self, other: &Self) -> Option<GraphPermutation8> {
         let mut swaps = [0, 1, 2, 3, 4, 5, 6, 7].map(|index| Swap { index });
 
         let mut stack = [BitSet8::EMPTY; EIGHT];
 
         let last_adj_count = other.adjacencies[7].len_const();
+        //todo skip empty nodes
 
         stack[7] = BitSet8::from_iter(
             self.adjacencies
@@ -236,72 +204,6 @@ impl Graph8 {
             index = next_index;
         }
     }
-
-    // /// Find swaps to map this graph to `other`
-    // ///
-    // /// for (i, j) in swaps.into_iter().enumerate() {
-    // ///  board.runes.swap(i, j as usize);
-    // /// }
-    // pub fn find_mapping_swaps(mut self, other: &Self) -> Option<[Swap; EIGHT]> {
-    //     let mut swaps = [0, 1, 2, 3, 4, 5, 6, 7].map(|index| Swap { index });
-
-    //     let mut stack = [BitSet8::EMPTY; EIGHT];
-    //     let zero_adj_count = other.adjacencies[0].len_const();
-    //     stack[0] = BitSet8::from_iter(
-    //         self.adjacencies
-    //             .iter()
-    //             .enumerate()
-    //             .filter(|x| x.1.len_const() == zero_adj_count)
-    //             .map(|x| x.0 as u32),
-    //     );
-
-    //     let mut index: usize = 0;
-
-    //     loop {
-    //         let Some(top) = stack.get_mut(index) else {
-    //             return Some(swaps);
-    //         };
-
-    //         let Some(next_adj) = top.pop_const() else {
-    //             index = index.checked_sub(1)?;
-
-    //             self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
-
-    //             continue;
-    //         };
-    //         swaps[index] = Swap {
-    //             index: next_adj as u8,
-    //         };
-    //         self.swap_nodes(NodeIndex(index as u8), NodeIndex(next_adj as u8));
-
-    //         //println!("{c}: Top {:016b} Swaps {:?}",top.inner(),  swaps);
-    //         let next_index = index + 1;
-    //         if next_index >= EIGHT {
-    //             //todo actually just go up to the max of the active node counts
-    //             return Some(swaps);
-    //         };
-
-    //         let other_adj = other.adjacencies[next_index];
-    //         let other_adj_count = other_adj.len_const();
-    //         let first_n = BitSet8::from_first_n_const(next_index as u32);
-    //         let other_first_n = other_adj.with_intersect(&first_n);
-
-    //         let possible_swaps = BitSet8::from_iter(
-    //             self.adjacencies
-    //                 .iter()
-    //                 .enumerate()
-    //                 .skip(next_index)
-    //                 .filter(|x| {
-    //                     x.1.len_const() == other_adj_count
-    //                         && x.1.with_intersect(&first_n) == other_first_n
-    //                 })
-    //                 .map(|x| x.0 as u32),
-    //         );
-    //         stack[next_index] = possible_swaps;
-
-    //         index = next_index;
-    //     }
-    // }
 
     /// Finds the minimum connections set
     /// Uses a thread local cache
@@ -544,7 +446,7 @@ mod tests {
             .find_mapping_permutation(&g2)
             .expect("Should be able to find swaps");
 
-        let swaps = permutation.swaps().map(|x|x.index).join(",");
+        let swaps = permutation.swaps().map(|x| x.index).join(",");
         // Swap nodes 2 and 3
         assert_eq!(swaps, "0,1,2,2")
     }
@@ -598,192 +500,4 @@ mod tests {
 
         assert_eq!(g1.count_connections(), 3);
     }
-
-    // #[test]
-    // fn test_remove_fist_node() {
-    //     let g1 = parse_graph("01,02,04,13,14,23");
-
-    //     assert_eq!(g1.remove_first_node().to_string(), "02,03,12");
-    // }
-
-    // #[test]
-    // fn test_swap_board_to_new_layout() {
-    //     let old_board = DynamicBoard::PLUS1THROUGH10;
-
-    //     let old_layout = TileLayout::from_inner(536903685);
-    //     let new_layout = TileLayout::from_inner(16405);
-
-    //     let new_board = swap_board_to_new_layout(old_layout, new_layout, &old_board);
-
-    //     let expected_new_board = DynamicBoard {
-    //         runes: [
-    //             Rune::Plus1,
-    //             Rune::Plus3,
-    //             Rune::Plus4,
-    //             Rune::Plus2,
-    //             Rune::Plus5,
-    //             Rune::Plus6,
-    //             Rune::Plus7,
-    //             Rune::Plus8,
-    //             Rune::Plus9,
-    //             Rune::Plus10,
-    //         ],
-    //     };
-
-    //     assert_eq!(new_board, Some(expected_new_board));
-    // }
-
-    // #[test]
-    // fn test_graph_min_thins_4() {
-    //     let pairs = vec![
-    //         // T shape
-    //         (65557, 527366),
-    //         (1074069508, 527366),
-    //         //4 in a row
-    //         (85, 525314),
-    //         (8213, 525314),
-    //         (4398314962945, 525314),
-    //         // Square
-    //         (81925, 527374),
-    //         (327700, 527374),
-    //     ];
-
-    //     for (tl, expected_thin) in pairs {
-    //         let tile_layout = TileLayout::from_inner(tl);
-    //         //let expanded = tile_layout.expand_uncached();
-    //         let fat_graph: Graph8<4> = Graph8::from_tile_layout(tile_layout);
-
-    //         let mut cache = BTreeMap::new();
-
-    //         let min_thin: number_search::ConnectionsSet = fat_graph.find_min_thin_graph(&mut cache);
-
-    //         // for (graph, min_graph) in cache.iter(){
-    //         //     println!("From: {}\nTo  : {}\n", graph.list_connections::<4>(), min_graph.list_connections::<4>());
-    //         // }
-
-    //         assert_eq!(
-    //             min_thin.inner(),
-    //             expected_thin,
-    //             "Layout {tl} {}",
-    //             min_thin.list_connections()
-    //         );
-    //     }
-    // }
-
-    // #[test]
-    // fn test_graph_min_thins_5() {
-    //     let pairs = vec![(16810025, 1573890), (4325413, 1573890)];
-
-    //     for (tl, expected_thin) in pairs {
-    //         let tile_layout = TileLayout::from_inner(tl);
-    //         //let expanded = tile_layout.expand_uncached();
-    //         let fat_graph: Graph8<5> = Graph8::from_tile_layout(tile_layout);
-
-    //         let mut cache = BTreeMap::new();
-
-    //         let min_thin = fat_graph.find_min_thin_graph(&mut cache);
-
-    //         // for (graph, min_graph) in cache.iter(){
-    //         //     println!("From: {}\nTo  : {}\n", graph.list_connections::<4>(), min_graph.list_connections::<4>());
-    //         // }
-
-    //         assert_eq!(
-    //             min_thin.inner(),
-    //             expected_thin,
-    //             "Layout {tl} {}",
-    //             min_thin.list_connections()
-    //         );
-    //     }
-    // }
-
-    // #[test]
-    // fn test_subgraph_permutations() {
-    //     let pyramid: Graph8<6> =
-    //         Graph8::from_tile_layout(TileLayout::from_inner(TileLayout::PYRAMID));
-
-    //     let fish: Graph8<6> = Graph8::from_tile_layout(TileLayout::from_inner(1170378915848));
-
-    //     let permutations = pyramid.iter_subgraph_permutations(fish).collect_vec();
-
-    //     let board = DynamicBoard::PLUS1THROUGH10;
-
-    //     let pyramid_layout = TileLayout::from_inner(TileLayout::PYRAMID).get_expanded();
-
-    //     let permuted_boards = permutations
-    //         .into_iter()
-    //         .map(|p| {
-    //             let mut b2 = board.clone();
-    //             p.apply(&mut b2.runes);
-
-    //             pyramid_layout.format_board_multiline(&b2)
-    //         })
-    //         .join("\n\n");
-
-    //     insta::assert_snapshot!(permuted_boards)
-    // }
-
-    // #[test]
-    // fn test_graphs() {
-    //     for (name, tile_layout) in TileLayout::NAMED_VARIANTS {
-    //         let tile_layout = TileLayout::from_inner(*tile_layout);
-
-    //         let fat_graph: Graph8<9> = Graph8::from_tile_layout(tile_layout);
-
-    //         assert_eq!(
-    //             tile_layout.count_connections(),
-    //             fat_graph.connection_count(),
-    //             "{name} connection count"
-    //         );
-
-    //         let thin_graph = fat_graph.to_thin();
-    //         let fat2 = thin_graph.to_fat_graph();
-
-    //         assert_eq!(
-    //             fat_graph,
-    //             fat2,
-    //             "{name} round trip\n\n{}\n\n{}",
-    //             fat_graph.list_connections(),
-    //             fat2.list_connections()
-    //         );
-
-    //         let mut path_count_4 = 1;
-    //         let mut path_count_6 = 1;
-    //         let mut path_count_9 = 1;
-
-    //         for path in fat_graph
-    //             .iter_paths()
-    //             .filter(|x| (x.tiles[0].0 as usize) < tile_layout.count())
-    //         {
-    //             //println!("{path}");
-
-    //             // if! found_paths.insert(path.clone()){
-    //             //     println!("Duplicate Path {path}")
-    //             // }
-    //             if path.tiles.len() <= 4 {
-    //                 path_count_4 += 1;
-    //             }
-    //             if path.tiles.len() <= 6 {
-    //                 path_count_6 += 1;
-    //             }
-    //             if path.tiles.len() <= 9 {
-    //                 path_count_9 += 1;
-    //             }
-    //         }
-
-    //         let info = TileLayoutInfo::calculate_uncached(tile_layout);
-
-    //         // println!(
-    //         //     r#"{name}
-    //         // Path Count 4: Actual {path_count_4} Expected {}
-    //         // Path Count 6: Actual {path_count_6} Expected {}
-    //         // Path Count 9: Actual {path_count_9} Expected {}
-    //         // "#,
-    //         //     info.path_count_4, info.path_count_6, info.path_count_9
-    //         // );
-
-    //         assert_eq!(path_count_4, info.path_count_4, "{name} path count 4",);
-    //         assert_eq!(path_count_6, info.path_count_6, "{name} path count 6",);
-    //         assert_eq!(path_count_9, info.path_count_9, "{name} path count 9",);
-    //     }
-    // }
 }

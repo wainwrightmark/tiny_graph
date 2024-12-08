@@ -4,6 +4,9 @@ use std::{iter::FusedIterator, num::NonZeroU8};
 pub struct GraphPermutation8(u16);
 
 impl GraphPermutation8 {
+
+    pub const IDENTITY: GraphPermutation8 = GraphPermutation8(0);
+
     pub fn inner(&self) -> u16 {
         self.0
     }
