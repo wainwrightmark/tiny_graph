@@ -1,6 +1,7 @@
 pub mod connections8;
 pub mod graph8;
 pub mod graph_path_iter;
+pub mod graph_permutation8;
 
 pub (crate) const EIGHT: usize = 8;
 

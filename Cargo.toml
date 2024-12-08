@@ -1,13 +1,13 @@
 [package]
-name = "const_graph"
+name = "tiny_graph"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 arrayvec = "0.7.6"
 const_sized_bit_set = "0.3.0"
-importunate = "0.1.2"
 
 
 [dev-dependencies]
 insta = "1"
+itertools = "0.13"

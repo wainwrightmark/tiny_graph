@@ -1,24 +1,24 @@
-use std::collections::BTreeSet;
+use std::cell::RefCell;
 use std::fmt::Display;
 use std::iter::FusedIterator;
 
 use std::collections::BTreeMap;
 use std::num::ParseIntError;
 use std::str::FromStr;
-use std::u32;
+use std::{u32, u8};
 
 use const_sized_bit_set::bit_set_trait::BitSetTrait;
 use const_sized_bit_set::BitSet8;
-use importunate::Permutation;
 
 use crate::connections8::Connections8;
 use crate::graph_path_iter::{GraphPath8, GraphPathIter};
+use crate::graph_permutation8::{GraphPermutation8, Swap};
 use crate::{NodeIndex, EIGHT};
 
 /// A graph with up to 8 nodes
 #[derive(Debug, Clone, PartialEq)]
 pub struct Graph8 {
-    pub(crate) adjacencies: [BitSet8; 8],
+    pub(crate) adjacencies: [BitSet8; 8], //todo refactor and just use a u64
 }
 
 impl Graph8 {
@@ -32,7 +32,7 @@ impl Graph8 {
     }
 
     /// The number of active nodes.
-    /// A noe is active if it has connections or if a node with greater index has connections
+    /// A node is active if it has connections or if a node with greater index has connections
     pub(crate) const fn active_nodes(&self) -> usize {
         let mut used_nodes = BitSet8::EMPTY;
         let mut index = 0;
@@ -49,9 +49,10 @@ impl Graph8 {
     pub fn iter_subgraph_permutations(
         self,
         potential_subgraph: &Self,
-    ) -> impl Iterator<Item = Permutation<u16, EIGHT>> + DoubleEndedIterator {
+    ) -> impl Iterator<Item = GraphPermutation8> + DoubleEndedIterator {
         let potential_subgraph = potential_subgraph.clone();
-        let iter = Permutation::all().filter(move |permutation| {
+        let active_nodes = self.active_nodes();
+        let iter = GraphPermutation8::all_for_n_elements(active_nodes).filter(move |permutation| {
             let mut clone = potential_subgraph.clone();
             clone.apply_permutation(*permutation);
 
@@ -121,27 +122,44 @@ impl Graph8 {
         }
     }
 
-    pub fn is_unchanged_under_permutation<const N: usize>(
-        &self,
-        permutation: Permutation<u16, N>,
-    ) -> bool {
+    pub fn is_unchanged_under_permutation(&self, permutation: GraphPermutation8) -> bool {
         let mut clone = self.clone();
         for (index, swap) in permutation.swaps().enumerate() {
-            if self.adjacencies[index].len_const()
-                != self.adjacencies[index + swap as usize].len_const()
-            {
+            let other_index = swap.index as usize;
+            if self.adjacencies[index].len_const() != self.adjacencies[other_index].len_const() {
                 return false;
             }
-            clone.swap_nodes(NodeIndex(index as u8), NodeIndex(index as u8 + swap as u8));
+            clone.swap_nodes(NodeIndex(index as u8), NodeIndex(other_index as u8));
         }
         self == &clone
     }
 
-    pub fn apply_permutation<const N: usize>(&mut self, permutation: Permutation<u16, N>) {
+    pub fn apply_permutation(&mut self, permutation: GraphPermutation8) {
         for (index, swap) in permutation.swaps().enumerate() {
-            self.swap_nodes(NodeIndex(index as u8), NodeIndex(index as u8 + swap as u8));
+            let index = index as u8;
+            let other_index = swap.index;
+            self.swap_nodes(NodeIndex(index), NodeIndex(other_index));
         }
     }
+
+    // ///Removes the first n nodes, shifting the remaining nodes into their place
+    // pub fn remove_first_n_nodes(&self, count_to_remove: u32) -> Self {
+    //     let mut u = self.as_u64();
+    //     let mask = ((u8::MAX << count_to_remove) as u64) * 0x101010101010101;
+    //     u &= mask;
+    //     u >>= 9 * count_to_remove;
+    //     Self::from_u64(u)
+    // }
+
+    // fn as_u64(&self) -> u64 {
+    //     u64::from_le_bytes(self.adjacencies.map(|x| x.inner_const()))
+    // }
+
+    // fn from_u64(value: u64) -> Self {
+    //     Self {
+    //         adjacencies: value.to_le_bytes().map(|x| BitSet8::from_inner_const(x)),
+    //     }
+    // }
 
     // pub(crate) fn find_class_indices(&self) -> BitSet8 {
     //     let mut seen: BTreeSet<Connections8> = Default::default();
@@ -157,63 +175,61 @@ impl Graph8 {
     //     set
     // }
 
-    /// Find swaps to map this graph to `other`
-    ///
-    /// for (i, j) in swaps.into_iter().enumerate() {
-    ///  board.runes.swap(i, j as usize);
-    /// }
-    pub fn find_mapping_swaps(mut self, other: &Self) -> Option<[u8; EIGHT]> {
-        let mut swaps = [0; EIGHT];
+    pub fn find_mapping_permutation(mut self, other: &Self) -> Option<GraphPermutation8> {
+        let mut swaps = [0, 1, 2, 3, 4, 5, 6, 7].map(|index| Swap { index });
 
         let mut stack = [BitSet8::EMPTY; EIGHT];
-        let zero_adj_count = other.adjacencies[0].len_const();
-        stack[0] = BitSet8::from_iter(
+
+        let last_adj_count = other.adjacencies[7].len_const();
+
+        stack[7] = BitSet8::from_iter(
             self.adjacencies
                 .iter()
                 .enumerate()
-                .filter(|x| x.1.len_const() == zero_adj_count)
+                .filter(|(_index, set)| set.len_const() == last_adj_count)
                 .map(|x| x.0 as u32),
         );
 
-        let mut index: usize = 0;
+        let mut index: usize = 7;
 
         loop {
-            let Some(top) = stack.get_mut(index) else {
-                return Some(swaps);
-            };
+            let top = stack.get_mut(index).unwrap();
 
-            let Some(next_adj) = top.pop_const() else {
-                index = index.checked_sub(1)?;
+            let Some(next_adj) = top.pop_last_const() else {
+                index = index + 1;
+                if index >= EIGHT {
+                    return None;
+                }
 
-                self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index]));
+                self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
 
                 continue;
             };
-            swaps[index] = next_adj as u8;
+
+            swaps[index] = Swap {
+                index: next_adj as u8,
+            };
             self.swap_nodes(NodeIndex(index as u8), NodeIndex(next_adj as u8));
 
-            //println!("{c}: Top {:016b} Swaps {:?}",top.inner(),  swaps);
-            let next_index = index + 1;
-            if next_index >= EIGHT {
-                //todo actually just go up to the max of the active node counts
-                return Some(swaps);
+            let Some(next_index) = index.checked_sub(1) else {
+                return GraphPermutation8::try_from_swaps(swaps.into_iter());
             };
 
             let other_adj = other.adjacencies[next_index];
             let other_adj_count = other_adj.len_const();
-            let first_n = BitSet8::from_first_n_const(next_index as u32);
-            let other_first_n = other_adj.with_intersect(&first_n);
+            let last_n = BitSet8::from_first_n_const(next_index as u32).with_negated();
+            let other_intersect_last_n = other_adj.with_intersect(&last_n);
 
             let possible_swaps = BitSet8::from_iter(
                 self.adjacencies
                     .iter()
                     .enumerate()
-                    .skip(next_index)
-                    .filter(|x| {
-                        x.1.len_const() == other_adj_count
-                            && x.1.with_intersect(&first_n) == other_first_n
+                    .take(next_index + 1)
+                    .filter(|(_index, set)| {
+                        set.len_const() == other_adj_count
+                            && set.with_intersect(&last_n) == other_intersect_last_n
                     })
-                    .map(|x| x.0 as u32),
+                    .map(|(index, _set)| index as u32),
             );
             stack[next_index] = possible_swaps;
 
@@ -221,7 +237,83 @@ impl Graph8 {
         }
     }
 
-    pub fn find_min_thin_graph(
+    // /// Find swaps to map this graph to `other`
+    // ///
+    // /// for (i, j) in swaps.into_iter().enumerate() {
+    // ///  board.runes.swap(i, j as usize);
+    // /// }
+    // pub fn find_mapping_swaps(mut self, other: &Self) -> Option<[Swap; EIGHT]> {
+    //     let mut swaps = [0, 1, 2, 3, 4, 5, 6, 7].map(|index| Swap { index });
+
+    //     let mut stack = [BitSet8::EMPTY; EIGHT];
+    //     let zero_adj_count = other.adjacencies[0].len_const();
+    //     stack[0] = BitSet8::from_iter(
+    //         self.adjacencies
+    //             .iter()
+    //             .enumerate()
+    //             .filter(|x| x.1.len_const() == zero_adj_count)
+    //             .map(|x| x.0 as u32),
+    //     );
+
+    //     let mut index: usize = 0;
+
+    //     loop {
+    //         let Some(top) = stack.get_mut(index) else {
+    //             return Some(swaps);
+    //         };
+
+    //         let Some(next_adj) = top.pop_const() else {
+    //             index = index.checked_sub(1)?;
+
+    //             self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
+
+    //             continue;
+    //         };
+    //         swaps[index] = Swap {
+    //             index: next_adj as u8,
+    //         };
+    //         self.swap_nodes(NodeIndex(index as u8), NodeIndex(next_adj as u8));
+
+    //         //println!("{c}: Top {:016b} Swaps {:?}",top.inner(),  swaps);
+    //         let next_index = index + 1;
+    //         if next_index >= EIGHT {
+    //             //todo actually just go up to the max of the active node counts
+    //             return Some(swaps);
+    //         };
+
+    //         let other_adj = other.adjacencies[next_index];
+    //         let other_adj_count = other_adj.len_const();
+    //         let first_n = BitSet8::from_first_n_const(next_index as u32);
+    //         let other_first_n = other_adj.with_intersect(&first_n);
+
+    //         let possible_swaps = BitSet8::from_iter(
+    //             self.adjacencies
+    //                 .iter()
+    //                 .enumerate()
+    //                 .skip(next_index)
+    //                 .filter(|x| {
+    //                     x.1.len_const() == other_adj_count
+    //                         && x.1.with_intersect(&first_n) == other_first_n
+    //                 })
+    //                 .map(|x| x.0 as u32),
+    //         );
+    //         stack[next_index] = possible_swaps;
+
+    //         index = next_index;
+    //     }
+    // }
+
+    /// Finds the minimum connections set
+    /// Uses a thread local cache
+    pub fn find_min_connections_set(&self) -> Connections8 {
+        thread_local! {
+            static CACHE: RefCell<BTreeMap<(Connections8, u32), Connections8>>  = const{RefCell::new(BTreeMap::new())}  ;
+        }
+
+        CACHE.with(|c| self.find_min_connections_set_with_cache(&mut c.borrow_mut()))
+    }
+
+    fn find_min_connections_set_with_cache(
         &self,
         cache: &mut BTreeMap<(Connections8, u32), Connections8>,
     ) -> Connections8 {
@@ -241,7 +333,8 @@ impl Graph8 {
             }
 
             //find things with the fewest elements
-            possibles = possibles.min_set_by_key(|x| graph.adjacencies[x as usize].len());
+            possibles = //todo max_set_by_key
+                possibles.min_set_by_key(|x| u32::MAX - graph.adjacencies[x as usize].len());
 
             possibles
         }
@@ -288,6 +381,7 @@ impl Graph8 {
 
     #[inline]
     pub fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
+        //todo use a u64 and make more efficient
         if i == j {
             return;
         }
@@ -302,7 +396,6 @@ impl Graph8 {
     #[inline]
     #[must_use]
     pub fn to_connection_set(&self) -> Connections8 {
-        //todo impl into
         Connections8::from_graph(self)
     }
 
@@ -358,13 +451,11 @@ impl FromStr for Graph8 {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, str::FromStr};
-
-    use importunate::Permutation;
-
-    use crate::NodeIndex;
+    use itertools::Itertools;
 
     use super::Graph8;
+    use crate::{graph_permutation8::GraphPermutation8, NodeIndex};
+    use std::str::FromStr;
 
     fn parse_graph(s: &str) -> Graph8 {
         Graph8::from_str(s).unwrap()
@@ -395,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_subgraph_permutations() {
-        let supergraph = parse_graph("01,02,23");
+        let supergraph = parse_graph("01,02,12,13,23");
         let subgraph = parse_graph("01,02,13");
 
         let subgraph_permutations: Vec<_> =
@@ -429,7 +520,7 @@ mod tests {
         let g1 = parse_graph("01,03,13");
         let g2 = parse_graph("01,02,23");
 
-        let swap_01 = Permutation::<u16, 2>::rotate_left();
+        let swap_01 = GraphPermutation8::from_inner(1);
 
         assert!(g1.is_unchanged_under_permutation(swap_01));
         assert!(!g2.is_unchanged_under_permutation(swap_01));
@@ -439,7 +530,7 @@ mod tests {
     fn test_apply_permutation() {
         let mut graph = parse_graph("01,02,23");
 
-        let swap_01 = Permutation::<u16, 2>::rotate_left();
+        let swap_01 = GraphPermutation8::from_inner(1);
         graph.apply_permutation(swap_01);
         assert_eq!(graph.to_string(), "01,12,23");
     }
@@ -449,12 +540,13 @@ mod tests {
         let g1 = parse_graph("01,02,12");
         let g2 = parse_graph("01,03,13");
 
-        let swaps = g1
-            .find_mapping_swaps(&g2)
+        let permutation = g1
+            .find_mapping_permutation(&g2)
             .expect("Should be able to find swaps");
 
+        let swaps = permutation.swaps().map(|x|x.index).join(",");
         // Swap nodes 2 and 3
-        assert_eq!(swaps, [0, 1, 3, 3, 4, 5, 6, 7])
+        assert_eq!(swaps, "0,1,2,2")
     }
 
     #[test]
@@ -462,7 +554,7 @@ mod tests {
         let g1 = parse_graph("01,02,13");
         let g2 = parse_graph("01,03,13");
 
-        let swaps = g1.find_mapping_swaps(&g2);
+        let swaps = g1.find_mapping_permutation(&g2);
 
         // No possible solution
         assert_eq!(swaps, None)
@@ -483,16 +575,12 @@ mod tests {
     fn test_min_thin_graph() {
         let g1 = parse_graph("01,02,12");
         let g2 = parse_graph("01,03,13");
-        let mut cache: BTreeMap<_, _> = BTreeMap::default();
 
-        let mg1 = g1.find_min_thin_graph(&mut cache);
-        let mg2 = g2.find_min_thin_graph(&mut cache);
-
-        //assert_eq!(g1.to_connection_set().inner(), 7);
-        //assert_eq!(g2.to_connection_set().inner(), 25);
+        let mg1 = g1.find_min_connections_set();
+        let mg2 = g2.find_min_connections_set();
 
         assert_eq!(mg1, mg2);
-        assert_eq!(mg1.inner(), 202375168);
+        assert_eq!(mg1.inner(), 131);
 
         assert_eq!(mg2.to_graph(), g1);
     }
@@ -510,6 +598,13 @@ mod tests {
 
         assert_eq!(g1.count_connections(), 3);
     }
+
+    // #[test]
+    // fn test_remove_fist_node() {
+    //     let g1 = parse_graph("01,02,04,13,14,23");
+
+    //     assert_eq!(g1.remove_first_node().to_string(), "02,03,12");
+    // }
 
     // #[test]
     // fn test_swap_board_to_new_layout() {

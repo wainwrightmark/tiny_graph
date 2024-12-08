@@ -1,4 +1,6 @@
-use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32, BitSet8};
+use std::fmt::Display;
+
+use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32};
 
 use crate::{graph8::Graph8, NodeIndex};
 
@@ -14,6 +16,14 @@ impl Connections8 {
 
     pub const fn inner(&self) -> u32 {
         self.set.inner_const()
+    }
+
+    pub const fn connection_count(&self) -> u32 {
+        self.set.len_const()
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.set.inner_const() == 0
     }
 
     pub const fn union(&mut self, other: &Self) {
@@ -49,32 +59,23 @@ impl Connections8 {
         self.set.insert_const(key.0 as u32);
     }
 
-    pub fn from_graph(graph: &Graph8) -> Self { //todo const
+    pub fn from_graph(graph: &Graph8) -> Self {
+        //todo const
         let mut bits_used: u32 = 0;
         let mut set = 0u32;
-        for index in 1..=graph.active_nodes() {
-            let mut adj = graph.adjacencies[index];
-            adj.intersect_with_const(&BitSet8::from_first_n_const(index as u32));
 
-            let mut adj = adj.inner_const() as u32;
+        for index in 0..graph.active_nodes() {
+            let mut adj = graph.adjacencies[index].inner_const() as u32;
+            adj >>= index + 1;
 
             adj <<= bits_used;
             set |= adj;
-            bits_used += index as u32;
+            bits_used += 7 - index as u32;
         }
 
         Self {
             set: BitSet32::from_inner(set),
         }
-    }
-
-    pub fn list_connections(&self) -> String {
-        self.iter()
-            .map(|ck| {
-                let (a, b) = ck.to_indexes();
-                format!("{}_{}", a.0, b.0)
-            })
-            .collect()
     }
 
     pub fn iter(
@@ -88,9 +89,33 @@ impl Connections8 {
     }
 }
 
+impl Display for Connections8 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for ck in self.iter() {
+            let (a, b) = ck.to_indexes();
+            use std::fmt::Write;
+            if first {
+                first = false
+            } else {
+                f.write_char(',')?;
+            }
+            write!(f, "{}{}", a.0, b.0)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl From<Graph8> for Connections8 {
     fn from(value: Graph8) -> Self {
         Self::from_graph(&value)
+    }
+}
+
+impl From<Connections8> for Graph8 {
+    fn from(value: Connections8) -> Self {
+        value.to_graph()
     }
 }
 
@@ -100,16 +125,17 @@ pub struct ConnectionKey(u8);
 impl ConnectionKey {
     const KEYS_TO_PAIRS: [(u8, u8); 28] = {
         let mut keys_to_pairs = [(0, 0); 28];
-        let mut right = 1;
-        let mut key = 0;
-        while right < 8 {
-            let mut left = 0;
-            while left < right {
+        let mut left = 0;
+        let mut key = 0usize;
+        while left < 8 {
+            let mut right = left + 1;
+            while right < 8 {
                 keys_to_pairs[key] = (left, right);
-                left += 1;
+                right += 1;
                 key += 1;
             }
-            right += 1;
+
+            left += 1;
         }
         keys_to_pairs
     };
