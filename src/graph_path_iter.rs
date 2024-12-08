@@ -81,3 +81,23 @@ impl std::fmt::Display for GraphPath8 {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use itertools::Itertools;
+
+    use crate::graph8::Graph8;
+
+    use super::GraphPathIter;
+
+    #[test]
+    pub fn test_graph_path_iter() {
+        let graph = Graph8::from_str("01,02,12,13,23").unwrap();
+
+        let paths = GraphPathIter::new(graph).map(|x| x.to_string()).join("\n");
+
+        insta::assert_snapshot!(paths)
+    }
+}

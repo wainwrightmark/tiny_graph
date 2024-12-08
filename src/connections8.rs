@@ -1,12 +1,20 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32};
+use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32, BitSet8};
 
 use crate::{graph8::Graph8, NodeIndex};
 
 #[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq, Ord)]
 pub struct Connections8 {
     set: BitSet32,
+}
+
+impl Deref for Connections8{
+    type Target = BitSet32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.set
+    }
 }
 
 impl Connections8 {
@@ -18,27 +26,7 @@ impl Connections8 {
         self.set.inner_const()
     }
 
-    pub const fn connection_count(&self) -> u32 {
-        self.set.len_const()
-    }
 
-    pub const fn is_empty(&self) -> bool {
-        self.set.inner_const() == 0
-    }
-
-    pub const fn union(&mut self, other: &Self) {
-        self.set.union_with_const(&other.set);
-    }
-
-    pub fn with_union(&self, other: &Self) -> Self {
-        Connections8 {
-            set: self.set.with_union(&other.set),
-        }
-    }
-
-    pub fn is_subset(&self, other: &Self) -> bool {
-        self.set.is_subset(&other.set)
-    }
 
     pub fn to_graph(self) -> Graph8 {
         let mut graph = Graph8::EMPTY;
@@ -63,20 +51,40 @@ impl Connections8 {
         //todo const
         let mut bits_used: u32 = 0;
         let mut set = 0u32;
+        for index in 1..graph.active_nodes() {
+            let mut adj = graph.adjacencies[index];
+            adj.intersect_with_const(&BitSet8::from_first_n_const(index as u32));
 
-        for index in 0..graph.active_nodes() {
-            let mut adj = graph.adjacencies[index].inner_const() as u32;
-            adj >>= index + 1;
+            let mut adj = adj.inner_const() as u32;
 
             adj <<= bits_used;
             set |= adj;
-            bits_used += 7 - index as u32;
+            bits_used += index as u32;
         }
 
         Self {
             set: BitSet32::from_inner(set),
         }
     }
+
+    // pub fn from_graph(graph: &Graph8) -> Self {
+    //     //todo const
+    //     let mut bits_used: u32 = 0;
+    //     let mut set = 0u32;
+
+    //     for index in 0..graph.active_nodes() {
+    //         let mut adj = graph.adjacencies[index].inner_const() as u32;
+    //         adj >>= index + 1;
+
+    //         adj <<= bits_used;
+    //         set |= adj;
+    //         bits_used += 7 - index as u32;
+    //     }
+
+    //     Self {
+    //         set: BitSet32::from_inner(set),
+    //     }
+    // }
 
     pub fn iter(
         &self,
@@ -123,19 +131,35 @@ impl From<Connections8> for Graph8 {
 pub struct ConnectionKey(u8);
 
 impl ConnectionKey {
+    // const KEYS_TO_PAIRS: [(u8, u8); 28] = {
+    //     let mut keys_to_pairs = [(0, 0); 28];
+    //     let mut left = 0;
+    //     let mut key = 0usize;
+    //     while left < 8 {
+    //         let mut right = left + 1;
+    //         while right < 8 {
+    //             keys_to_pairs[key] = (left, right);
+    //             right += 1;
+    //             key += 1;
+    //         }
+
+    //         left += 1;
+    //     }
+    //     keys_to_pairs
+    // };
+
     const KEYS_TO_PAIRS: [(u8, u8); 28] = {
         let mut keys_to_pairs = [(0, 0); 28];
-        let mut left = 0;
-        let mut key = 0usize;
-        while left < 8 {
-            let mut right = left + 1;
-            while right < 8 {
+        let mut right = 1;
+        let mut key = 0;
+        while right < 8 {
+            let mut left = 0;
+            while left < right {
                 keys_to_pairs[key] = (left, right);
-                right += 1;
+                left += 1;
                 key += 1;
             }
-
-            left += 1;
+            right += 1;
         }
         keys_to_pairs
     };
@@ -181,14 +205,24 @@ impl From<(NodeIndex, NodeIndex)> for ConnectionKey {
 mod tests {
     use std::str::FromStr;
 
+    use const_sized_bit_set::bit_set_trait::BitSetTrait;
+
     use crate::{graph8::Graph8, NodeIndex};
 
     #[test]
     pub fn test_insert() {
         let graph = Graph8::from_str("01,02,23").unwrap();
-        let mut cs = graph.to_connection_set();
+        let mut cs: crate::connections8::Connections8 = graph.into();
+
+        assert!(!cs.is_empty());
+        assert_eq!(cs.to_string(), "01,02,23");
+
         cs.insert((NodeIndex(1), NodeIndex(2)));
 
-        assert_eq!(cs.to_graph().to_string(), "01,02,12,23");
+        assert_eq!(cs.to_string(), "01,02,12,23");
+
+        let graph2: Graph8 = cs.into();
+
+        assert_eq!(graph2.to_string(), "01,02,12,23");
     }
 }

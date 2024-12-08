@@ -34,14 +34,16 @@ impl Graph8 {
     /// The number of active nodes.
     /// A node is active if it has connections or if a node with greater index has connections
     pub(crate) const fn active_nodes(&self) -> usize {
-        let mut used_nodes = BitSet8::EMPTY;
-        let mut index = 0;
-        while index < EIGHT {
-            used_nodes.union_with_const(&self.adjacencies[index]);
-            index += 1;
-        }
+        let mut active_nodes = EIGHT;
 
-        EIGHT - used_nodes.inner_const().leading_zeros() as usize
+        while let Some(i) = active_nodes.checked_sub(1) {
+            if self.adjacencies[i].eq_const(&BitSet8::EMPTY) {
+                active_nodes = i;
+            } else {
+                return active_nodes;
+            }
+        }
+        return 0;
     }
 
     /// Return an iterator of permutations that map `sub` to a subgraph of `self`
@@ -219,12 +221,13 @@ impl Graph8 {
         &self,
         cache: &mut BTreeMap<(Connections8, u32), Connections8>,
     ) -> Connections8 {
-        fn find_next_target_adjacencies(graph: &Graph8, frozen: u32) -> BitSet8 {
-            let mut possibles = BitSet8::ALL.with_except(&BitSet8::from_first_n_const(frozen));
+        fn find_next_target_adjacencies(graph: &Graph8, unfrozen: u32) -> BitSet8 {
+            let mut possibles = BitSet8::from_first_n_const(unfrozen);
             //check frozen bits to find referenced sets
-            for i in 0..frozen {
-                let ai = graph.adjacencies[i as usize];
-                let p = ai.with_intersect(&possibles);
+            for frozen_index in (unfrozen..8).rev() {
+                // The set of nodes which are not connected to this frozen node
+                let ai = graph.adjacencies[frozen_index as usize].with_negated();
+                let p = possibles.with_intersect(&ai);
 
                 if !p.is_empty() {
                     possibles = p;
@@ -235,8 +238,7 @@ impl Graph8 {
             }
 
             //find things with the fewest elements
-            possibles = //todo max_set_by_key
-                possibles.min_set_by_key(|x| u32::MAX - graph.adjacencies[x as usize].len());
+            possibles = possibles.min_set_by_key(|x| graph.adjacencies[x as usize].len());
 
             possibles
         }
@@ -244,25 +246,28 @@ impl Graph8 {
         fn find_min_thin_graph_inner(
             graph: &Graph8,
             cache: &mut BTreeMap<(Connections8, u32), Connections8>,
-            frozen: u32,
+            unfrozen: u32,
         ) -> Connections8 {
             let as_thin = graph.to_connection_set();
 
-            let min_thin = if frozen as usize >= EIGHT {
+            let min_thin = if unfrozen == 0 {
                 as_thin
             } else {
-                if let Some(cached) = cache.get(&(as_thin, frozen)) {
+                if let Some(cached) = cache.get(&(as_thin, unfrozen)) {
                     *cached
                 } else {
-                    let possibles = find_next_target_adjacencies(graph, frozen);
+                    let possibles = find_next_target_adjacencies(graph, unfrozen);
 
                     let r = possibles
                         .into_iter()
                         .map(|index| {
                             let mut graph = graph.clone();
-                            graph.swap_nodes(NodeIndex(frozen as u8), NodeIndex(index as u8));
+                            graph.swap_nodes(
+                                NodeIndex((unfrozen - 1) as u8),
+                                NodeIndex(index as u8),
+                            );
 
-                            find_min_thin_graph_inner(&graph, cache, frozen + 1)
+                            find_min_thin_graph_inner(&graph, cache, unfrozen - 1)
                         })
                         .min()
                         .unwrap_or_else(|| as_thin);
@@ -271,15 +276,80 @@ impl Graph8 {
                 }
             };
 
-            cache.insert((as_thin, frozen), min_thin);
+            cache.insert((as_thin, unfrozen), min_thin);
             min_thin
 
             //graph.adjacencies
         }
 
-        let r = find_min_thin_graph_inner(&self, cache, 0);
+        let r = find_min_thin_graph_inner(&self, cache, self.active_nodes() as u32);
         r
     }
+    // }fn find_min_connections_set_with_cache(
+    //     &self,
+    //     cache: &mut BTreeMap<(Connections8, u32), Connections8>,
+    // ) -> Connections8 {
+    //     fn find_next_target_adjacencies(graph: &Graph8, frozen: u32) -> BitSet8 {
+    //         let mut possibles = BitSet8::ALL.with_except(&BitSet8::from_first_n_const(frozen));
+    //         //check frozen bits to find referenced sets
+    //         for i in 0..frozen {
+    //             let ai = graph.adjacencies[i as usize];
+    //             let p = ai.with_intersect(&possibles);
+
+    //             if !p.is_empty() {
+    //                 possibles = p;
+    //             }
+    //             if possibles.len() == 1 {
+    //                 return possibles;
+    //             }
+    //         }
+
+    //         //find things with the fewest elements
+    //         possibles = //todo max_set_by_key
+    //             possibles.min_set_by_key(|x| u32::MAX - graph.adjacencies[x as usize].len());
+
+    //         possibles
+    //     }
+
+    //     fn find_min_thin_graph_inner(
+    //         graph: &Graph8,
+    //         cache: &mut BTreeMap<(Connections8, u32), Connections8>,
+    //         frozen: u32,
+    //     ) -> Connections8 {
+    //         let as_thin = graph.to_connection_set();
+
+    //         let min_thin = if frozen as usize >= EIGHT {
+    //             as_thin
+    //         } else {
+    //             if let Some(cached) = cache.get(&(as_thin, frozen)) {
+    //                 *cached
+    //             } else {
+    //                 let possibles = find_next_target_adjacencies(graph, frozen);
+
+    //                 let r = possibles
+    //                     .into_iter()
+    //                     .map(|index| {
+    //                         let mut graph = graph.clone();
+    //                         graph.swap_nodes(NodeIndex(frozen as u8), NodeIndex(index as u8));
+
+    //                         find_min_thin_graph_inner(&graph, cache, frozen + 1)
+    //                     })
+    //                     .min()
+    //                     .unwrap_or_else(|| as_thin);
+
+    //                 r
+    //             }
+    //         };
+
+    //         cache.insert((as_thin, frozen), min_thin);
+    //         min_thin
+
+    //         //graph.adjacencies
+    //     }
+
+    //     let r = find_min_thin_graph_inner(&self, cache, 0);
+    //     r
+    // }
 
     #[inline]
     pub fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
@@ -474,15 +544,15 @@ mod tests {
     }
 
     #[test]
-    fn test_min_thin_graph() {
+    fn test_min_thin_connections_set() {
         let g1 = parse_graph("01,02,12");
         let g2 = parse_graph("01,03,13");
 
         let mg1 = g1.find_min_connections_set();
         let mg2 = g2.find_min_connections_set();
 
-        assert_eq!(mg1, mg2);
-        assert_eq!(mg1.inner(), 131);
+        assert_eq!(mg1, mg2, "{} {}", mg1.to_string(), mg2.to_string());
+        assert_eq!(mg1.inner(), 7);
 
         assert_eq!(mg2.to_graph(), g1);
     }
