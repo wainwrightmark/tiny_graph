@@ -149,10 +149,16 @@ impl Graph8 {
 
         let mut stack = [BitSet8::EMPTY; EIGHT];
 
-        let last_adj_count = other.adjacencies[7].len_const();
-        //todo skip empty nodes
+        let Some(last_index) = self.active_nodes().max(other.active_nodes()).checked_sub(1) else {
+            return if *other == Graph8::EMPTY {
+                Some(GraphPermutation8::IDENTITY)
+            } else {
+                None
+            };
+        };
+        let last_adj_count = other.adjacencies[last_index].len_const();
 
-        stack[7] = BitSet8::from_iter(
+        stack[last_index] = BitSet8::from_iter(
             self.adjacencies
                 .iter()
                 .enumerate()
@@ -160,14 +166,14 @@ impl Graph8 {
                 .map(|x| x.0 as u32),
         );
 
-        let mut index: usize = 7;
+        let mut index: usize = last_index;
 
         loop {
             let top = stack.get_mut(index).unwrap();
 
             let Some(next_adj) = top.pop_last_const() else {
                 index = index + 1;
-                if index >= EIGHT {
+                if index > last_index {
                     return None;
                 }
 
@@ -201,6 +207,7 @@ impl Graph8 {
                     })
                     .map(|(index, _set)| index as u32),
             );
+
             stack[next_index] = possible_swaps;
 
             index = next_index;
@@ -285,71 +292,6 @@ impl Graph8 {
         let r = find_min_thin_graph_inner(&self, cache, self.active_nodes() as u32);
         r
     }
-    // }fn find_min_connections_set_with_cache(
-    //     &self,
-    //     cache: &mut BTreeMap<(Connections8, u32), Connections8>,
-    // ) -> Connections8 {
-    //     fn find_next_target_adjacencies(graph: &Graph8, frozen: u32) -> BitSet8 {
-    //         let mut possibles = BitSet8::ALL.with_except(&BitSet8::from_first_n_const(frozen));
-    //         //check frozen bits to find referenced sets
-    //         for i in 0..frozen {
-    //             let ai = graph.adjacencies[i as usize];
-    //             let p = ai.with_intersect(&possibles);
-
-    //             if !p.is_empty() {
-    //                 possibles = p;
-    //             }
-    //             if possibles.len() == 1 {
-    //                 return possibles;
-    //             }
-    //         }
-
-    //         //find things with the fewest elements
-    //         possibles = //todo max_set_by_key
-    //             possibles.min_set_by_key(|x| u32::MAX - graph.adjacencies[x as usize].len());
-
-    //         possibles
-    //     }
-
-    //     fn find_min_thin_graph_inner(
-    //         graph: &Graph8,
-    //         cache: &mut BTreeMap<(Connections8, u32), Connections8>,
-    //         frozen: u32,
-    //     ) -> Connections8 {
-    //         let as_thin = graph.to_connection_set();
-
-    //         let min_thin = if frozen as usize >= EIGHT {
-    //             as_thin
-    //         } else {
-    //             if let Some(cached) = cache.get(&(as_thin, frozen)) {
-    //                 *cached
-    //             } else {
-    //                 let possibles = find_next_target_adjacencies(graph, frozen);
-
-    //                 let r = possibles
-    //                     .into_iter()
-    //                     .map(|index| {
-    //                         let mut graph = graph.clone();
-    //                         graph.swap_nodes(NodeIndex(frozen as u8), NodeIndex(index as u8));
-
-    //                         find_min_thin_graph_inner(&graph, cache, frozen + 1)
-    //                     })
-    //                     .min()
-    //                     .unwrap_or_else(|| as_thin);
-
-    //                 r
-    //             }
-    //         };
-
-    //         cache.insert((as_thin, frozen), min_thin);
-    //         min_thin
-
-    //         //graph.adjacencies
-    //     }
-
-    //     let r = find_min_thin_graph_inner(&self, cache, 0);
-    //     r
-    // }
 
     #[inline]
     pub fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
@@ -508,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_mapping_swaps_success() {
+    fn test_find_mapping_permutation_success() {
         let g1 = parse_graph("01,02,12");
         let g2 = parse_graph("01,03,13");
 
@@ -522,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_mapping_swaps_fail() {
+    fn test_find_mapping_permutation_fail() {
         let g1 = parse_graph("01,02,13");
         let g2 = parse_graph("01,03,13");
 
