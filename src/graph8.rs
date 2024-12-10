@@ -4,6 +4,7 @@ use std::iter::FusedIterator;
 
 use std::collections::BTreeMap;
 use std::num::ParseIntError;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::{u32, u8};
 
@@ -13,18 +14,31 @@ use const_sized_bit_set::BitSet8;
 use crate::connections8::Connections8;
 use crate::graph_path_iter::{GraphPath8, GraphPathIter};
 use crate::graph_permutation8::{GraphPermutation8, Swap};
+use crate::symmetries8::Symmetries8;
 use crate::{NodeIndex, EIGHT};
 
 /// A graph with up to 8 nodes
 #[derive(Debug, Clone, PartialEq)]
 pub struct Graph8 {
-    pub(crate) adjacencies: [BitSet8; 8], //todo refactor and just use a u64
+    pub(crate) adjacencies: [BitSet8; EIGHT], //todo refactor and just use a u64
+}
+
+impl Deref for Graph8 {
+    type Target = [BitSet8; EIGHT];
+
+    fn deref(&self) -> &Self::Target {
+        &self.adjacencies
+    }
 }
 
 impl Graph8 {
     pub const EMPTY: Self = Self {
         adjacencies: [BitSet8::EMPTY; EIGHT],
     };
+
+    pub const fn from_adjacencies_unchecked(adjacencies: [BitSet8; EIGHT]) -> Self {
+        Self { adjacencies }
+    }
 
     pub const fn insert(&mut self, a: NodeIndex, b: NodeIndex) {
         self.adjacencies[a.0 as usize].insert_const(b.0 as u32);
@@ -33,7 +47,7 @@ impl Graph8 {
 
     /// The number of active nodes.
     /// A node is active if it has connections or if a node with greater index has connections
-    pub(crate) const fn active_nodes(&self) -> usize {
+    pub const fn active_nodes(&self) -> usize {
         let mut active_nodes = EIGHT;
 
         while let Some(i) = active_nodes.checked_sub(1) {
@@ -142,6 +156,10 @@ impl Graph8 {
             let other_index = swap.index;
             self.swap_nodes(NodeIndex(index), NodeIndex(other_index));
         }
+    }
+
+    pub fn get_symmetries(&self) -> Symmetries8 {
+        Symmetries8::new(self)
     }
 
     pub fn find_mapping_permutation(mut self, other: &Self) -> Option<GraphPermutation8> {

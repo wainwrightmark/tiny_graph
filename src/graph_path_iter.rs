@@ -1,7 +1,11 @@
 use arrayvec::ArrayVec;
 use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet8};
 
-use crate::{graph8::Graph8, NodeIndex, EIGHT};
+use crate::{
+    connections8::{ConnectionKey, Connections8},
+    graph8::Graph8,
+    NodeIndex, EIGHT,
+};
 
 #[derive(Debug, Clone)]
 pub struct GraphPathIter {
@@ -70,6 +74,41 @@ pub struct GraphPath8 {
 }
 
 impl std::fmt::Display for GraphPath8 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (position, node) in self.tiles.iter().enumerate() {
+            if position != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", node.0)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GraphPathWithSet8 {
+    pub tiles: ArrayVec<NodeIndex, EIGHT>,
+    pub set: Connections8,
+}
+
+impl<'a> From<&'a GraphPath8> for GraphPathWithSet8 {
+    fn from(value: &'a GraphPath8) -> Self {
+        let set = Connections8::from_iter(
+            value
+                .tiles
+                .windows(2)
+                .map(|indexes| ConnectionKey::from_indexes(indexes[0], indexes[1])),
+        );
+
+        Self {
+            tiles: value.tiles.clone(),
+            set,
+        }
+    }
+}
+
+impl std::fmt::Display for GraphPathWithSet8 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (position, node) in self.tiles.iter().enumerate() {
             if position != 0 {

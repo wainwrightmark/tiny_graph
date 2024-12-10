@@ -1,19 +1,44 @@
-use std::{fmt::Display, ops::Deref};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32, BitSet8};
 
 use crate::{graph8::Graph8, NodeIndex};
 
-#[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq, Ord)]
+#[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq, Ord, Hash, Default)]
 pub struct Connections8 {
     set: BitSet32,
 }
 
-impl Deref for Connections8{
+impl Deref for Connections8 {
     type Target = BitSet32;
 
     fn deref(&self) -> &Self::Target {
         &self.set
+    }
+}
+
+impl DerefMut for Connections8 {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.set
+    }
+}
+
+impl Extend<ConnectionKey> for Connections8 {
+    fn extend<T: IntoIterator<Item = ConnectionKey>>(&mut self, iter: T) {
+        for x in iter {
+            self.insert(x);
+        }
+    }
+}
+
+impl FromIterator<ConnectionKey> for Connections8 {
+    fn from_iter<T: IntoIterator<Item = ConnectionKey>>(iter: T) -> Self {
+        let mut s = Self::default();
+        s.extend(iter);
+        s
     }
 }
 
@@ -26,7 +51,9 @@ impl Connections8 {
         self.set.inner_const()
     }
 
-
+    pub const fn from_inner_unchecked(inner: u32)-> Self{
+        Self{set: BitSet32::from_inner_const(inner)}
+    }
 
     pub fn to_graph(self) -> Graph8 {
         let mut graph = Graph8::EMPTY;
@@ -66,25 +93,6 @@ impl Connections8 {
             set: BitSet32::from_inner(set),
         }
     }
-
-    // pub fn from_graph(graph: &Graph8) -> Self {
-    //     //todo const
-    //     let mut bits_used: u32 = 0;
-    //     let mut set = 0u32;
-
-    //     for index in 0..graph.active_nodes() {
-    //         let mut adj = graph.adjacencies[index].inner_const() as u32;
-    //         adj >>= index + 1;
-
-    //         adj <<= bits_used;
-    //         set |= adj;
-    //         bits_used += 7 - index as u32;
-    //     }
-
-    //     Self {
-    //         set: BitSet32::from_inner(set),
-    //     }
-    // }
 
     pub fn iter(
         &self,
