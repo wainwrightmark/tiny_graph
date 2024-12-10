@@ -4,7 +4,6 @@ use std::{iter::FusedIterator, num::NonZeroU8};
 pub struct GraphPermutation8(u16);
 
 impl GraphPermutation8 {
-
     pub const IDENTITY: GraphPermutation8 = GraphPermutation8(0);
 
     pub fn inner(&self) -> u16 {
@@ -37,6 +36,37 @@ impl GraphPermutation8 {
         Some(Self(inner))
     }
 
+    pub (crate) fn calculate_unchecked(mut arr: &mut [u8]) -> Option<Self> {
+        fn position_max(arr: &[u8])-> Option<usize>{
+            let mut max = *arr.first()?;
+            let mut max_index = 0;
+
+            for x in 1..arr.len(){
+                if arr[x] > max{
+                    max = arr[x];
+                    max_index = x;
+                }
+            }
+
+            return Some(max_index);
+        }
+
+        let mut swaps = Swap::ARRAY8;
+
+        while let Some(max_index) = position_max(arr) {
+            let index = arr.len() - 1;
+            swaps[index] = Swap{index: max_index as u8};
+
+            arr.swap(index, max_index);
+
+            let (_, last) = arr.split_last_mut().unwrap();
+            arr = last;
+        }
+
+
+        Self::try_from_swaps(swaps.into_iter())
+    }
+
     pub fn apply_to_slice<T>(self, arr: &mut [T]) {
         for (index, swap) in self.swaps().enumerate() {
             swap.apply(index, arr);
@@ -48,6 +78,23 @@ impl GraphPermutation8 {
     ) -> impl Iterator<Item = Self> + ExactSizeIterator + DoubleEndedIterator + FusedIterator + Clone
     {
         (0..FACTORIALS[n]).into_iter().map(|x| Self(x))
+    }
+
+
+    /// Get the complete array of this permutation's elements
+    pub fn get_array(&self) -> [u8; 8] {
+        let mut arr = [0,1,2,3,4,5,6,7];
+        self.apply_to_slice(&mut arr);
+        arr
+    }
+
+    /// Combine this permutation with another. Producing a permutation equivalent to performing this and then the other.
+    /// Note that this operation is neither commutative nor associative
+    pub fn combine(&self, rhs: &Self) -> Self {
+        let mut arr = self.get_array();
+        rhs.apply_to_slice(&mut arr);
+
+        Self::calculate_unchecked(&mut arr).unwrap()
     }
 }
 
@@ -81,6 +128,17 @@ impl Swap {
     pub fn apply<T>(self, index: usize, arr: &mut [T]) {
         arr.swap(self.index as usize, index);
     }
+
+    pub const ARRAY8: [Swap; 8] = [
+        Swap { index: 0 },
+        Swap { index: 1 },
+        Swap { index: 2 },
+        Swap { index: 3 },
+        Swap { index: 4 },
+        Swap { index: 5 },
+        Swap { index: 6 },
+        Swap { index: 7 },
+    ];
 }
 
 impl std::iter::FusedIterator for SwapsIter8 {}
@@ -139,5 +197,50 @@ mod test {
                 );
             }
         }
+    }
+
+    #[test]
+    pub fn test_calculate_unchecked(){
+
+        fn test_calculate_roundtrip(arr: &[u8]){
+            let mut vec1 = Vec::from_iter(arr.into_iter().copied());
+
+            let perm = GraphPermutation8::calculate_unchecked(&mut vec1).expect("Should be able to calculate permutation");
+
+            let mut slice = (0u8..8).into_iter().take(arr.len()).collect::<Vec<_>>();
+
+            perm.apply_to_slice(&mut slice);
+
+            assert_eq!(arr, slice.as_slice())
+        }
+
+        assert_eq!(GraphPermutation8::calculate_unchecked(&mut [0,1,2,3,4,5,6,7]), Some(GraphPermutation8::IDENTITY));
+
+        test_calculate_roundtrip(&[]);
+        test_calculate_roundtrip(&[0]);
+        test_calculate_roundtrip(&[0,1]);
+        test_calculate_roundtrip(&[0,1,2,3,4,5]);
+
+
+        test_calculate_roundtrip(&[1,0]);
+
+
+        test_calculate_roundtrip(&[0,2,4,6,1,3,5,7]);
+
+
+    }
+
+    #[test]
+    pub fn test_combine(){
+        let perm1 = GraphPermutation8::calculate_unchecked(&mut [0,2,4,6,1,3,5,7]).unwrap();
+        let perm2 = GraphPermutation8::calculate_unchecked(&mut [3,0,1,2,4,5,6,7]).unwrap();
+
+        let perm1_then_2 = perm1.combine(&perm2);
+
+        assert_eq!(perm1_then_2.get_array(), [6,0,2,4,1,3,5,7]);
+
+        let perm2_then_1 = perm2.combine(&perm1);
+
+        assert_eq!(perm2_then_1.get_array(), [3, 1, 4, 6, 0, 2, 5, 7]);
     }
 }
