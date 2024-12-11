@@ -184,34 +184,47 @@ impl Graph8 {
                 .map(|x| x.0 as u32),
         );
 
+        //println!("Self: {self}. Other: {other}");
+
+        //println!("Self: {}", self.adjacencies.map(|x|format!("{x:b}")) .join(","));
+        //println!("Other: {}", other.adjacencies.map(|x|format!("{x:b}")) .join(","));
+
+        //println!("Last Index {last_index}. Last adj count {last_adj_count}");
         let mut index: usize = last_index;
 
         loop {
             let top = stack.get_mut(index).unwrap();
 
+            //println!("Index {index} Top: {top:?}");
+
             let Some(next_adj) = top.pop_last_const() else {
                 index = index + 1;
                 if index > last_index {
+                    //println!("Giving up");
                     return None;
                 }
+
+                //println!("Reverting swap {index} and {}",swaps[index].index);
 
                 self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
 
                 continue;
             };
 
+            //println!("Swapping {index} and {next_adj}");
             swaps[index] = Swap {
                 index: next_adj as u8,
             };
             self.swap_nodes(NodeIndex(index as u8), NodeIndex(next_adj as u8));
 
             let Some(next_index) = index.checked_sub(1) else {
+                //println!("Finished");
                 return GraphPermutation8::try_from_swaps(swaps.into_iter());
             };
 
             let other_adj = other.adjacencies[next_index];
             let other_adj_count = other_adj.len_const();
-            let last_n = BitSet8::from_first_n_const(next_index as u32).with_negated();
+            let last_n = BitSet8::from_first_n_const(index as u32).with_negated();
             let other_intersect_last_n = other_adj.with_intersect(&last_n);
 
             let possible_swaps = BitSet8::from_iter(
@@ -225,7 +238,7 @@ impl Graph8 {
                     })
                     .map(|(index, _set)| index as u32),
             );
-
+            //println!("Found {possible_swaps:?} with count {other_adj_count}");
             stack[next_index] = possible_swaps;
 
             index = next_index;
@@ -331,9 +344,10 @@ impl Graph8 {
         Connections8::from_graph(self)
     }
 
-    /// Each connection is only counted once e.g. 0-1 is the same as 1-0
+    /// Counts connections between nodes.
+    /// Each connection is effectively counted twice - once in each direction
     pub fn count_connections(&self) -> u32 {
-        self.adjacencies.iter().map(|x| x.len()).sum::<u32>() / 2
+        self.adjacencies.iter().map(|x| x.len()).sum::<u32>()
     }
 
     pub fn iter_paths(self) -> impl Iterator<Item = GraphPath8> + FusedIterator + Clone {
@@ -482,6 +496,19 @@ mod tests {
     }
 
     #[test]
+    fn test_find_mapping_permutation_success2() {
+        let g1 = parse_graph("01,02,12,23");
+        let g2 = parse_graph("01,12,03,13");
+
+        let permutation = g1
+            .find_mapping_permutation(&g2)
+            .expect("Should be able to find swaps");
+
+        let swaps = permutation.swaps().map(|x| x.index).join(",");
+        assert_eq!(swaps, "0,1,1,1")
+    }
+
+    #[test]
     fn test_find_mapping_permutation_fail() {
         let g1 = parse_graph("01,02,13");
         let g2 = parse_graph("01,03,13");
@@ -518,6 +545,20 @@ mod tests {
     }
 
     #[test]
+    fn test_min_thin_connections_set2() {
+        let g1 = parse_graph("12,14,15");
+        let g2 = parse_graph("01,02,03");
+
+        let mg1 = g1.find_min_connections_set();
+        let mg2 = g2.find_min_connections_set();
+
+        assert_eq!(mg1, mg2, "{} {}", mg1.to_string(), mg2.to_string());
+        assert_eq!(mg1.inner(), 11);
+
+        assert_eq!(mg1.to_graph(), g2);
+    }
+
+    #[test]
     fn test_swap_nodes() {
         let mut g1 = parse_graph("01,02,13");
         g1.swap_nodes(NodeIndex(1), NodeIndex(3));
@@ -528,6 +569,18 @@ mod tests {
     fn test_connection_count() {
         let g1 = parse_graph("01,02,13");
 
-        assert_eq!(g1.count_connections(), 3);
+        assert_eq!(g1.count_connections(), 6);
     }
+
+    // #[test]
+    // fn test_cs_to_layout(){
+    //     let mut output = String::new();
+
+    //     use std::fmt::Write;
+    //     writeln!(output, "{}", Connections8::from_inner_unchecked(2180)).unwrap();
+    //     writeln!(output, "{}", Connections8::from_inner_unchecked(21)).unwrap();
+    //     writeln!(output, "{}", Connections8::from_inner_unchecked(529)).unwrap();
+
+    //     assert_eq!(output, "abc")
+    // }
 }

@@ -17,6 +17,10 @@ impl NodeIndex{
     pub const fn inner(self)-> u8{
         self.0 as u8
     }
+
+    pub const fn from_inner(inner: u8)-> Self{
+        Self(inner)
+    }
 }
 
 impl From<u8> for NodeIndex {
