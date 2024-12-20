@@ -59,6 +59,17 @@ impl Graph8 {
         true
     }
 
+    pub const fn fully_connected(n: usize)-> Self{
+        let mut adjacencies = [BitSet8::EMPTY; EIGHT];
+        let mut index = 0;
+        while index < n {
+            adjacencies[index] = BitSet8::from_first_n_const(n as u32);
+            adjacencies[index].remove_const(index as u32);
+            index += 1;
+        }
+        Self { adjacencies }
+    }
+
     pub const fn from_adjacencies_unchecked(adjacencies: [BitSet8; EIGHT]) -> Self {
         Self { adjacencies }
     }
@@ -650,6 +661,23 @@ mod tests {
             negated.to_string(),
             "03,04,05,06,07,12,14,15,16,17,23,24,25,26,27,34,35,36,37,45,46,47,56,57,67"
         );
+    }
+
+    #[test]
+    fn test_fully_connected(){
+        assert_eq!(Graph8::fully_connected(0), Graph8::EMPTY);
+        assert_eq!(Graph8::fully_connected(1), Graph8::EMPTY);
+        assert_eq!(Graph8::fully_connected(2).to_string(), "01");
+        assert_eq!(Graph8::fully_connected(3).to_string(), "01,02,12");
+        assert_eq!(Graph8::fully_connected(4).to_string(), "01,02,03,12,13,23");
+        assert_eq!(Graph8::fully_connected(5).to_string(), "01,02,03,04,12,13,14,23,24,34");
+        assert_eq!(Graph8::fully_connected(6).to_string(), "01,02,03,04,05,12,13,14,15,23,24,25,34,35,45");
+        assert_eq!(Graph8::fully_connected(7).to_string(), "01,02,03,04,05,06,12,13,14,15,16,23,24,25,26,34,35,36,45,46,56");
+        assert_eq!(Graph8::fully_connected(8), Graph8::ALL);
+
+        for x in 0..=8{
+            assert!(Graph8::fully_connected(x).is_valid());
+        }
     }
 
     // #[test]
