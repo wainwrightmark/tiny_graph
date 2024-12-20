@@ -86,6 +86,21 @@ impl std::fmt::Display for GraphPath8 {
     }
 }
 
+impl GraphPath8 {
+    pub fn with_set(&self) -> GraphPathWithSet8 {
+        let set = Connections8::from_iter(
+            self.tiles
+                .windows(2)
+                .map(|indexes| ConnectionKey::from_indexes(indexes[0], indexes[1])),
+        );
+
+        GraphPathWithSet8 {
+            tiles: self.tiles.clone(),
+            set,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GraphPathWithSet8 {
     pub tiles: ArrayVec<NodeIndex, EIGHT>,
@@ -94,17 +109,7 @@ pub struct GraphPathWithSet8 {
 
 impl<'a> From<&'a GraphPath8> for GraphPathWithSet8 {
     fn from(value: &'a GraphPath8) -> Self {
-        let set = Connections8::from_iter(
-            value
-                .tiles
-                .windows(2)
-                .map(|indexes| ConnectionKey::from_indexes(indexes[0], indexes[1])),
-        );
-
-        Self {
-            tiles: value.tiles.clone(),
-            set,
-        }
+        value.with_set()
     }
 }
 

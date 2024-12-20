@@ -36,6 +36,10 @@ impl Graph8 {
         adjacencies: [BitSet8::EMPTY; EIGHT],
     };
 
+    pub const ALL: Self = Self {
+        adjacencies: [BitSet8::ALL; EIGHT],
+    };
+
     pub const fn from_adjacencies_unchecked(adjacencies: [BitSet8; EIGHT]) -> Self {
         Self { adjacencies }
     }
@@ -373,6 +377,17 @@ impl Graph8 {
         Self{adjacencies}
     }
 
+    /// Iterate through graph paths.
+    /// Paths will be ordered like
+    ///
+    /// 0
+    /// 0, 1
+    /// 0, 1, 2
+    /// 0, 1, 2, 3
+    /// 0, 1, 3
+    /// 0, 1, 3, 2
+    /// 0, 2
+    /// etc.
     pub fn iter_paths(self) -> impl Iterator<Item = GraphPath8> + FusedIterator + Clone {
         GraphPathIter::new(self)
     }
