@@ -36,9 +36,28 @@ impl Graph8 {
         adjacencies: [BitSet8::EMPTY; EIGHT],
     };
 
-    pub const ALL: Self = Self {
-        adjacencies: [BitSet8::ALL; EIGHT],
+    pub const ALL: Self = {
+        let mut adjacencies = [BitSet8::ALL; EIGHT];
+        let mut index = 0;
+        while index < EIGHT {
+            adjacencies[index].remove_const(index as u32);
+            index += 1;
+        }
+        Self { adjacencies }
     };
+
+    /// A graph is not valid if any of its nodes are connected to themselves
+    pub const fn is_valid(&self) -> bool {
+        let mut index = 0usize;
+        while index < EIGHT {
+            if self.adjacencies[index].contains_const(index as u32) {
+                return false;
+            }
+            index += 1;
+        }
+
+        true
+    }
 
     pub const fn from_adjacencies_unchecked(adjacencies: [BitSet8; EIGHT]) -> Self {
         Self { adjacencies }
@@ -365,16 +384,17 @@ impl Graph8 {
     }
 
     #[must_use]
-    pub const fn negate(&self)-> Self{
+    pub const fn negate(&self) -> Self {
         let mut adjacencies: [BitSet8; EIGHT] = self.adjacencies;
 
         let mut index = 0;
         while index < EIGHT {
             adjacencies[index].negate_const();
+            adjacencies[index].remove_const(index as u32);
             index += 1;
         }
 
-        Self{adjacencies}
+        Self { adjacencies }
     }
 
     /// Iterate through graph paths.
@@ -437,7 +457,7 @@ impl FromStr for Graph8 {
 mod tests {
     use itertools::Itertools;
 
-    use super::Graph8;
+    use super::{Graph8, EIGHT};
     use crate::{graph_permutation8::GraphPermutation8, NodeIndex};
     use std::str::FromStr;
 
@@ -611,11 +631,25 @@ mod tests {
     }
 
     #[test]
-    fn test_negate(){
-        let g1 = parse_graph("01,02,13");
-        let negated = g1.negate();
+    fn test_is_valid() {
+        let mut adj = [const_sized_bit_set::BitSet8::EMPTY; EIGHT];
+        adj[1].insert_const(1);
+        let g1 = Graph8::from_adjacencies_unchecked(adj);
 
-        assert_eq!(negated.to_string(), "03,04,05,06,07,12,14,15,16,17,23,24,25,26,27,34,35,36,37,45,46,47,56,57,67");
+        assert!(!g1.is_valid())
+    }
+
+    #[test]
+    fn test_negate() {
+        let g1 = parse_graph("01,02,13");
+        let negated: Graph8 = g1.negate();
+
+        assert!(negated.is_valid());
+
+        assert_eq!(
+            negated.to_string(),
+            "03,04,05,06,07,12,14,15,16,17,23,24,25,26,27,34,35,36,37,45,46,47,56,57,67"
+        );
     }
 
     // #[test]

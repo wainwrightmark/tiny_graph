@@ -47,6 +47,10 @@ impl Connections8 {
         set: BitSet32::EMPTY,
     };
 
+    pub const ALL: Self = Connections8 {
+        set: BitSet32::from_first_n_const(28),
+    };
+
     pub const fn inner(&self) -> u32 {
         self.set.inner_const()
     }
@@ -139,22 +143,6 @@ impl From<Connections8> for Graph8 {
 pub struct ConnectionKey(u8);
 
 impl ConnectionKey {
-    // const KEYS_TO_PAIRS: [(u8, u8); 28] = {
-    //     let mut keys_to_pairs = [(0, 0); 28];
-    //     let mut left = 0;
-    //     let mut key = 0usize;
-    //     while left < 8 {
-    //         let mut right = left + 1;
-    //         while right < 8 {
-    //             keys_to_pairs[key] = (left, right);
-    //             right += 1;
-    //             key += 1;
-    //         }
-
-    //         left += 1;
-    //     }
-    //     keys_to_pairs
-    // };
 
     const KEYS_TO_PAIRS: [(u8, u8); 28] = {
         let mut keys_to_pairs = [(0, 0); 28];

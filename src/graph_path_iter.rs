@@ -130,7 +130,7 @@ impl std::fmt::Display for GraphPathWithSet8 {
 mod tests {
     use crate::graph8::Graph8;
     use itertools::Itertools;
-    use std::str::FromStr;
+    use std::{collections::BTreeSet, str::FromStr};
 
     #[test]
     pub fn test_graph_path_iter() {
@@ -139,5 +139,15 @@ mod tests {
         let paths = graph.iter_paths().map(|x| x.to_string()).join("\n");
 
         insta::assert_snapshot!(paths)
+    }
+
+    #[test]
+    pub fn test_graph_path_iter_full_graph() {
+        let paths: BTreeSet<_> = Graph8::ALL.iter_paths().map(|x| x.to_string()).collect();
+
+        // (8C8 * 8!) + (8C7 * 7!) etc
+        const EXPECTED_COUNT: usize = (1 * 40320) + (8 * 5040) + (28 * 720) + (56 * 120) + (70 * 24) + (56 * 6) + (28 * 2) + (1 * 8);
+
+        assert_eq!(paths.len(), EXPECTED_COUNT)
     }
 }
