@@ -408,6 +408,13 @@ impl Graph8 {
         Self { adjacencies }
     }
 
+    /// Remove all connections to a particular node
+    pub const fn remove(&mut self, index: usize){
+        while let Some(other) = self.adjacencies[index].pop_const(){
+            self.adjacencies[other as usize].remove_const(index as u32);
+        }
+    }
+
     /// Iterate through graph paths.
     /// Paths will be ordered like
     ///
@@ -678,6 +685,14 @@ mod tests {
         for x in 0..=8{
             assert!(Graph8::fully_connected(x).is_valid());
         }
+    }
+
+    #[test]
+    fn test_remove(){
+        let mut set = Graph8::from_str("01,02,03,04,12,13,14,23,24,34").unwrap();
+        set.remove(2);
+
+        assert_eq!(set.to_string(), "01,03,04,13,14,34")
     }
 
     // #[test]
