@@ -327,14 +327,16 @@ impl Graph8 {
     #[inline]
     pub fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
         //todo use a u64 and make more efficient
-        if i == j {
+        if i.0 == j.0 {
             return;
         }
 
         self.adjacencies.swap(i.0 as usize, j.0 as usize);
 
-        for adj in self.adjacencies.iter_mut() {
-            *adj = adj.with_bits_swapped(i.0 as u32, j.0 as u32);
+        let mut index = 0;
+        while index < EIGHT {
+            self.adjacencies[index].swap_bits_const(i.0 as u32, j.0 as u32);
+            index += 1;
         }
     }
 
@@ -346,8 +348,29 @@ impl Graph8 {
 
     /// Counts connections between nodes.
     /// Each connection is effectively counted twice - once in each direction
-    pub fn count_connections(&self) -> u32 {
-        self.adjacencies.iter().map(|x| x.len()).sum::<u32>()
+    pub const fn count_connections(&self) -> u32 {
+        let mut total = 0u32;
+        let mut index = 0;
+        while index < EIGHT {
+            let adj = self.adjacencies[index];
+            total += adj.len_const();
+            index += 1;
+        }
+
+        total
+    }
+
+    #[must_use]
+    pub const fn negate(&self)-> Self{
+        let mut adjacencies: [BitSet8; EIGHT] = self.adjacencies;
+
+        let mut index = 0;
+        while index < EIGHT {
+            adjacencies[index].negate_const();
+            index += 1;
+        }
+
+        Self{adjacencies}
     }
 
     pub fn iter_paths(self) -> impl Iterator<Item = GraphPath8> + FusedIterator + Clone {
@@ -570,6 +593,14 @@ mod tests {
         let g1 = parse_graph("01,02,13");
 
         assert_eq!(g1.count_connections(), 6);
+    }
+
+    #[test]
+    fn test_negate(){
+        let g1 = parse_graph("01,02,13");
+        let negated = g1.negate();
+
+        assert_eq!(negated.to_string(), "03,04,05,06,07,12,14,15,16,17,23,24,25,26,27,34,35,36,37,45,46,47,56,57,67");
     }
 
     // #[test]
