@@ -18,7 +18,7 @@ use crate::symmetries8::Symmetries8;
 use crate::{NodeIndex, EIGHT};
 
 /// A graph with up to 8 nodes
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Graph8 {
     pub(crate) adjacencies: [BitSet8; EIGHT], //todo refactor and just use a u64
 }
@@ -59,7 +59,7 @@ impl Graph8 {
         true
     }
 
-    pub const fn fully_connected(n: usize)-> Self{
+    pub const fn fully_connected(n: usize) -> Self {
         let mut adjacencies = [BitSet8::EMPTY; EIGHT];
         let mut index = 0;
         while index < n {
@@ -253,7 +253,7 @@ impl Graph8 {
 
             let Some(next_index) = index.checked_sub(1) else {
                 //println!("Finished");
-                return GraphPermutation8::try_from_swaps(swaps.into_iter());
+                return GraphPermutation8::try_from_swaps_arr(swaps);
             };
 
             let other_adj = other.adjacencies[next_index];
@@ -409,8 +409,8 @@ impl Graph8 {
     }
 
     /// Remove all connections to a particular node
-    pub const fn remove(&mut self, index: usize){
-        while let Some(other) = self.adjacencies[index].pop_const(){
+    pub const fn remove(&mut self, index: usize) {
+        while let Some(other) = self.adjacencies[index].pop_const() {
             self.adjacencies[other as usize].remove_const(index as u32);
         }
     }
@@ -671,24 +671,33 @@ mod tests {
     }
 
     #[test]
-    fn test_fully_connected(){
+    fn test_fully_connected() {
         assert_eq!(Graph8::fully_connected(0), Graph8::EMPTY);
         assert_eq!(Graph8::fully_connected(1), Graph8::EMPTY);
         assert_eq!(Graph8::fully_connected(2).to_string(), "01");
         assert_eq!(Graph8::fully_connected(3).to_string(), "01,02,12");
         assert_eq!(Graph8::fully_connected(4).to_string(), "01,02,03,12,13,23");
-        assert_eq!(Graph8::fully_connected(5).to_string(), "01,02,03,04,12,13,14,23,24,34");
-        assert_eq!(Graph8::fully_connected(6).to_string(), "01,02,03,04,05,12,13,14,15,23,24,25,34,35,45");
-        assert_eq!(Graph8::fully_connected(7).to_string(), "01,02,03,04,05,06,12,13,14,15,16,23,24,25,26,34,35,36,45,46,56");
+        assert_eq!(
+            Graph8::fully_connected(5).to_string(),
+            "01,02,03,04,12,13,14,23,24,34"
+        );
+        assert_eq!(
+            Graph8::fully_connected(6).to_string(),
+            "01,02,03,04,05,12,13,14,15,23,24,25,34,35,45"
+        );
+        assert_eq!(
+            Graph8::fully_connected(7).to_string(),
+            "01,02,03,04,05,06,12,13,14,15,16,23,24,25,26,34,35,36,45,46,56"
+        );
         assert_eq!(Graph8::fully_connected(8), Graph8::ALL);
 
-        for x in 0..=8{
+        for x in 0..=8 {
             assert!(Graph8::fully_connected(x).is_valid());
         }
     }
 
     #[test]
-    fn test_remove(){
+    fn test_remove() {
         let mut set = Graph8::from_str("01,02,03,04,12,13,14,23,24,34").unwrap();
         set.remove(2);
 

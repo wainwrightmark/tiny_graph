@@ -1,12 +1,33 @@
-use std::{iter::FusedIterator, num::NonZeroU8};
-
 use crate::EIGHT;
+use std::{iter::FusedIterator, num::NonZeroU8};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GraphPermutation8(u16);
 
 impl GraphPermutation8 {
+    /// The identity permutation which does nothing
     pub const IDENTITY: GraphPermutation8 = GraphPermutation8(0);
+
+    /// Permutations made by just swapping element `0` with element `n`
+    pub const SWAP_0_N: [GraphPermutation8; EIGHT] = {
+        let mut result = [GraphPermutation8::IDENTITY; EIGHT];
+        let mut index = 1; //can skip the first as it is already the identity
+
+        while index < EIGHT {
+            let mut swaps = Swap::ARRAY8;
+            swaps[index] = Swap { index: 0 };
+
+            let gp = GraphPermutation8::try_from_swaps_arr(swaps).unwrap();
+            result[index] = gp;
+
+            index += 1;
+        }
+
+        result
+    };
+
+    //todo ROTATE_LEFT and ROTATE_RIGHT
+
 
     pub const fn is_identity(&self) -> bool {
         self.0 == Self::IDENTITY.0
@@ -38,7 +59,29 @@ impl GraphPermutation8 {
         swaps
     }
 
-    pub fn try_from_swaps(swaps: impl Iterator<Item = Swap>) -> Option<Self> {
+    pub const fn try_from_swaps_arr(swaps: [Swap; EIGHT]) -> Option<Self> {
+        let mut inner = 0u16;
+        let mut multiplier = 1u16;
+
+        let mut index = 0;
+        while index < EIGHT {
+            let swap = swaps[index];
+            let s = swap.index as u16;
+
+            let diff = match (index as u16).checked_sub(s) {
+                Some(diff) => diff,
+                None => return None,
+            };
+            if index > 0 {
+                multiplier *= index as u16;
+            }
+            inner += diff * multiplier;
+            index += 1;
+        }
+        Some(Self(inner))
+    }
+
+    pub fn try_from_swaps_iter(swaps: impl Iterator<Item = Swap>) -> Option<Self> {
         let mut inner = 0u16;
         let mut multiplier = 1;
         for (index, swap) in swaps.enumerate() {
@@ -81,7 +124,7 @@ impl GraphPermutation8 {
             arr = last;
         }
 
-        Self::try_from_swaps(swaps.into_iter())
+        Self::try_from_swaps_arr(swaps)
     }
 
     pub fn apply_to_slice<T>(self, arr: &mut [T]) {
@@ -257,10 +300,26 @@ mod test {
     }
 
     #[test]
-    pub fn test_swaps_roundtrip() {
+    pub fn test_swaps_roundtrip1() {
         for perm in GraphPermutation8::all_for_n_elements(5) {
             let swaps = perm.swaps();
-            let perm2 = GraphPermutation8::try_from_swaps(swaps)
+            let perm2 = GraphPermutation8::try_from_swaps_iter(swaps)
+                .expect("Should be able to make iter from swaps");
+
+            if perm != perm2 {
+                panic!(
+                    "Swaps don't roundtrip: {perm:?} != {perm2:?} (perm swaps {})",
+                    perm.swaps().map(|x| x.index.to_string()).join(", ")
+                );
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_swaps_roundtrip2() {
+        for perm in GraphPermutation8::all_for_n_elements(5) {
+            let swaps = perm.swaps_array();
+            let perm2 = GraphPermutation8::try_from_swaps_arr(swaps)
                 .expect("Should be able to make iter from swaps");
 
             if perm != perm2 {
@@ -338,5 +397,15 @@ mod test {
             assert_eq!(arr.combine(&inverse), GraphPermutation8::IDENTITY);
             assert_eq!(inverse.combine(&arr), GraphPermutation8::IDENTITY)
         }
+    }
+
+    #[test]
+    pub fn test_small_swaps() {
+        let mut arr = [0,1,2,3,4,5,6,7];
+        for perm in GraphPermutation8::SWAP_0_N.iter(){
+            perm.apply_to_slice(&mut arr);
+        }
+
+        assert_eq!(arr, [7, 0, 1, 2, 3, 4, 5, 6])
     }
 }
