@@ -119,9 +119,9 @@ impl GraphPermutation8 {
             let mut max = *arr.first()?;
             let mut max_index = 0;
 
-            for x in 1..arr.len() {
-                if arr[x] > max {
-                    max = arr[x];
+            for (x, item) in arr.iter().copied().enumerate().skip(1) {
+                if item > max {
+                    max = item;
                     max_index = x;
                 }
             }

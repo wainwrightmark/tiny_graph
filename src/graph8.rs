@@ -5,7 +5,6 @@ use std::iter::FusedIterator;
 use std::collections::BTreeMap;
 use std::num::ParseIntError;
 use std::str::FromStr;
-use std::{u32, u8};
 
 use const_sized_bit_set::bit_set_trait::BitSetTrait;
 use const_sized_bit_set::{BitSet64, BitSet8};
@@ -368,7 +367,6 @@ impl Graph8 {
     }
 
     #[inline]
-    #[must_use]
     pub fn to_connection_set(&self) -> Connections8 {
         Connections8::from_graph(self)
     }
@@ -381,7 +379,6 @@ impl Graph8 {
     }
 
     #[inline]
-    #[must_use]
     pub const fn negate(&self) -> Self {
         let mut inner = self.inner;
         inner.negate_const();
