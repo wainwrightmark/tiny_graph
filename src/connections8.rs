@@ -7,6 +7,7 @@ use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32, BitSet8};
 
 use crate::{graph8::Graph8, NodeIndex};
 
+#[must_use]
 #[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq, Ord, Hash, Default)]
 pub struct Connections8 {
     set: BitSet32,
@@ -51,14 +52,19 @@ impl Connections8 {
         set: BitSet32::from_first_n_const(28),
     };
 
+    #[inline]
     pub const fn inner(&self) -> u32 {
         self.set.inner_const()
     }
 
-    pub const fn from_inner_unchecked(inner: u32)-> Self{
-        Self{set: BitSet32::from_inner_const(inner)}
+    #[inline]
+    pub const fn from_inner_unchecked(inner: u32) -> Self {
+        Self {
+            set: BitSet32::from_inner_const(inner),
+        }
     }
 
+    #[inline]
     pub fn to_graph(self) -> Graph8 {
         let mut graph = Graph8::EMPTY;
         for key in self.iter() {
@@ -68,6 +74,7 @@ impl Connections8 {
         graph
     }
 
+    #[inline]
     pub fn insert(&mut self, key: impl Into<ConnectionKey>) {
         let key: ConnectionKey = key.into();
         debug_assert!(
@@ -78,6 +85,7 @@ impl Connections8 {
         self.set.insert_const(key.0 as u32);
     }
 
+    #[inline]
     pub fn from_graph(graph: &Graph8) -> Self {
         //todo const
         let mut bits_used: u32 = 0;
@@ -98,10 +106,10 @@ impl Connections8 {
         }
     }
 
+    #[inline]
     pub fn iter(
         &self,
-    ) -> impl Iterator<Item = ConnectionKey>
-           + DoubleEndedIterator
+    ) -> impl DoubleEndedIterator<Item = ConnectionKey>
            + ExactSizeIterator
            + std::iter::FusedIterator
            + Clone {
@@ -143,7 +151,6 @@ impl From<Connections8> for Graph8 {
 pub struct ConnectionKey(u8);
 
 impl ConnectionKey {
-
     const KEYS_TO_PAIRS: [(u8, u8); 28] = {
         let mut keys_to_pairs = [(0, 0); 28];
         let mut right = 1;

@@ -18,6 +18,7 @@ use crate::{NodeIndex, EIGHT};
 
 /// A graph with up to 8 nodes
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[must_use]
 pub struct Graph8 {
     pub(crate) inner: BitSet64,
 }
@@ -39,11 +40,13 @@ impl Graph8 {
         inner: BitSet64::from_inner_const(0x7fbfdfeff7fbfdfe),
     };
 
+    #[inline]
     /// A graph is not valid if any of its nodes are connected to themselves
     pub const fn is_valid(&self) -> bool {
         self.inner.is_subset_const(&Self::ALL.inner)
     }
 
+    #[inline]
     pub const fn fully_connected(n: usize) -> Self {
         const FC: [u64; 9] = [
             0x0,
@@ -62,44 +65,49 @@ impl Graph8 {
         }
     }
 
+    #[inline]
     pub const fn from_inner_unchecked(inner: BitSet64) -> Self {
         Self { inner }
     }
 
+    #[inline]
     pub const fn insert(&mut self, a: NodeIndex, b: NodeIndex) {
         self.inner.insert_const(((a.0 * 8) + b.0) as u32);
         self.inner.insert_const(((b.0 * 8) + a.0) as u32);
     }
 
+    #[inline]
     /// The number of active nodes.
     /// A node is active if it has connections or if a node with greater index has connections
     pub const fn active_nodes(&self) -> usize {
         8 - (self.inner.inner_const().leading_zeros() as usize / 8)
     }
 
+    #[inline]
     /// Return an iterator of permutations that map `sub` to a subgraph of `self`
     /// TODO cache results of this
     pub fn iter_subgraph_permutations(
         self,
         potential_subgraph: &Self,
-    ) -> impl Iterator<Item = GraphPermutation8> + DoubleEndedIterator {
+    ) -> impl DoubleEndedIterator<Item = GraphPermutation8> {
         let potential_subgraph = potential_subgraph.clone();
         let active_nodes = self.active_nodes();
-        let iter = GraphPermutation8::all_for_n_elements(active_nodes).filter(move |permutation| {
+
+        GraphPermutation8::all_for_n_elements(active_nodes).filter(move |permutation| {
             let mut clone = potential_subgraph.clone();
             clone.apply_permutation(*permutation);
 
             self.is_super_graph(&clone)
-        });
-
-        iter
+        })
     }
 
+    #[inline]
     ///Is this a super graph of a subgraph
     pub const fn is_super_graph(&self, subgraph: &Self) -> bool {
         self.inner.is_superset_const(&subgraph.inner)
     }
 
+    #[inline]
     /// Whether this could be a super graph based numbers of connections
     pub fn could_be_super_graph(&self, subgraph: &Self) -> bool {
         struct Counts {
@@ -133,18 +141,19 @@ impl Graph8 {
             .total_connections
             .cmp(&subgraph_counts.total_connections)
         {
-            std::cmp::Ordering::Less => return false,
+            std::cmp::Ordering::Less => false,
             std::cmp::Ordering::Equal => {
-                return self_counts.min_connections == subgraph_counts.min_connections
-                    && self_counts.max_connections == subgraph_counts.max_connections;
+                self_counts.min_connections == subgraph_counts.min_connections
+                    && self_counts.max_connections == subgraph_counts.max_connections
             }
             std::cmp::Ordering::Greater => {
-                return self_counts.min_connections >= subgraph_counts.min_connections
-                    && self_counts.max_connections >= subgraph_counts.max_connections;
+                self_counts.min_connections >= subgraph_counts.min_connections
+                    && self_counts.max_connections >= subgraph_counts.max_connections
             }
         }
     }
 
+    #[inline]
     pub fn is_unchanged_under_permutation(&self, permutation: GraphPermutation8) -> bool {
         let mut clone = self.clone();
         //todo is there a faster way?
@@ -152,6 +161,7 @@ impl Graph8 {
         self == &clone
     }
 
+    #[inline]
     pub fn apply_permutation(&mut self, permutation: GraphPermutation8) {
         for (index, swap) in permutation.swaps().enumerate() {
             let index = index as u8;
@@ -160,10 +170,12 @@ impl Graph8 {
         }
     }
 
+    #[inline]
     pub fn get_symmetries(&self) -> Symmetries8 {
         Symmetries8::new(self)
     }
 
+    #[inline]
     pub fn find_mapping_permutation(mut self, other: &Self) -> Option<GraphPermutation8> {
         let mut swaps = [0, 1, 2, 3, 4, 5, 6, 7].map(|index| Swap { index });
 
@@ -203,7 +215,7 @@ impl Graph8 {
             //println!("Index {index} Top: {top:?}");
 
             let Some(next_adj) = top.pop_last_const() else {
-                index = index + 1;
+                index += 1;
                 if index > last_index {
                     //println!("Giving up");
                     return None;
@@ -253,10 +265,12 @@ impl Graph8 {
         }
     }
 
+    #[inline]
     pub fn adjacencies(&self, index: usize) -> BitSet8 {
         BitSet8::from_inner_const(self.inner.inner_const().to_le_bytes()[index])
     }
 
+    #[inline]
     /// Finds the minimum connections set
     /// Uses a thread local cache
     pub fn find_min_connections_set(&self) -> Connections8 {
@@ -267,6 +281,7 @@ impl Graph8 {
         CACHE.with(|c| self.find_min_connections_set_with_cache(&mut c.borrow_mut()))
     }
 
+    #[inline]
     fn find_min_connections_set_with_cache(
         &self,
         cache: &mut BTreeMap<(Connections8, u32), Connections8>,
@@ -302,28 +317,21 @@ impl Graph8 {
 
             let min_thin = if unfrozen == 0 {
                 as_thin
+            } else if let Some(cached) = cache.get(&(as_thin, unfrozen)) {
+                *cached
             } else {
-                if let Some(cached) = cache.get(&(as_thin, unfrozen)) {
-                    *cached
-                } else {
-                    let possibles = find_next_target_adjacencies(graph, unfrozen);
+                let possibles = find_next_target_adjacencies(graph, unfrozen);
 
-                    let r = possibles
-                        .into_iter()
-                        .map(|index| {
-                            let mut graph = graph.clone();
-                            graph.swap_nodes(
-                                NodeIndex((unfrozen - 1) as u8),
-                                NodeIndex(index as u8),
-                            );
+                possibles
+                    .into_iter()
+                    .map(|index| {
+                        let mut graph = graph.clone();
+                        graph.swap_nodes(NodeIndex((unfrozen - 1) as u8), NodeIndex(index as u8));
 
-                            find_min_thin_graph_inner(&graph, cache, unfrozen - 1)
-                        })
-                        .min()
-                        .unwrap_or_else(|| as_thin);
-
-                    r
-                }
+                        find_min_thin_graph_inner(&graph, cache, unfrozen - 1)
+                    })
+                    .min()
+                    .unwrap_or(as_thin)
             };
 
             cache.insert((as_thin, unfrozen), min_thin);
@@ -332,8 +340,7 @@ impl Graph8 {
             //graph.adjacencies
         }
 
-        let r = find_min_thin_graph_inner(&self, cache, self.active_nodes() as u32);
-        r
+        find_min_thin_graph_inner(self, cache, self.active_nodes() as u32)
     }
 
     #[inline]
@@ -366,12 +373,14 @@ impl Graph8 {
         Connections8::from_graph(self)
     }
 
+    #[inline]
     /// Counts connections between nodes.
     /// Each connection is effectively counted twice - once in each direction
     pub const fn count_connections(&self) -> u32 {
         self.inner.len_const()
     }
 
+    #[inline]
     #[must_use]
     pub const fn negate(&self) -> Self {
         let mut inner = self.inner;
@@ -380,6 +389,7 @@ impl Graph8 {
         Self { inner }
     }
 
+    #[inline]
     /// Remove all connections to a particular node
     pub const fn remove(&mut self, index: usize) {
         const MASKS: [BitSet64; 8] = {
@@ -403,6 +413,7 @@ impl Graph8 {
         self.inner.intersect_with_const(&MASKS[index]);
     }
 
+    #[inline]
     /// Iterate through graph paths.
     /// Paths will be ordered like
     ///
@@ -414,7 +425,7 @@ impl Graph8 {
     /// 0, 1, 3, 2
     /// 0, 2
     /// etc.
-    pub fn iter_paths(self) -> impl Iterator<Item = GraphPath8> + FusedIterator + Clone {
+    pub fn iter_paths(self) -> impl FusedIterator<Item = GraphPath8> + Clone {
         GraphPathIter::new(self)
     }
 }
@@ -448,7 +459,7 @@ impl FromStr for Graph8 {
         let mut graph = Graph8::EMPTY;
 
         for x in s.split(",") {
-            if x.len() > 0 {
+            if !x.is_empty() {
                 let (a, b) = x.split_at(1);
 
                 let a: u8 = a.parse()?;
@@ -512,7 +523,7 @@ mod tests {
             let mut subgraph = subgraph.clone();
             subgraph.apply_permutation(permutation);
             use std::fmt::Write;
-            writeln!(data, "{}", subgraph.to_string()).unwrap();
+            writeln!(data, "{}", subgraph).unwrap();
         }
 
         insta::assert_snapshot!(data);
@@ -606,7 +617,7 @@ mod tests {
         let mg1 = g1.find_min_connections_set();
         let mg2 = g2.find_min_connections_set();
 
-        assert_eq!(mg1, mg2, "{} {}", mg1.to_string(), mg2.to_string());
+        assert_eq!(mg1, mg2, "{} {}", mg1, mg2);
         assert_eq!(mg1.inner(), 7);
 
         assert_eq!(mg2.to_graph(), g1);
@@ -620,7 +631,7 @@ mod tests {
         let mg1 = g1.find_min_connections_set();
         let mg2 = g2.find_min_connections_set();
 
-        assert_eq!(mg1, mg2, "{} {}", mg1.to_string(), mg2.to_string());
+        assert_eq!(mg1, mg2, "{} {}", mg1, mg2);
         assert_eq!(mg1.inner(), 11);
 
         assert_eq!(mg1.to_graph(), g2);

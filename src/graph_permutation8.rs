@@ -31,7 +31,6 @@ impl GraphPermutation8 {
 
     //todo ROTATE_LEFT and ROTATE_RIGHT
 
-
     pub const fn is_identity(&self) -> bool {
         self.0 == Self::IDENTITY.0
     }
@@ -46,7 +45,7 @@ impl GraphPermutation8 {
         Self(value)
     }
 
-    pub const fn swaps(self) -> impl Iterator<Item = Swap> + Clone + FusedIterator {
+    pub const fn swaps(self) -> impl Clone + FusedIterator<Item = Swap> {
         SwapsIter8 {
             inner: self.0,
             index: NonZeroU8::MIN,
@@ -100,12 +99,14 @@ impl GraphPermutation8 {
 
     /// Try to calculate a permutation from an array
     /// The elements of the array must be distinct and all less than or equal to 8
-    pub fn calculate(arr: &mut [u8])-> Option<Self>{
+    pub fn calculate(arr: &mut [u8]) -> Option<Self> {
         let mut indexes_found = BitSet8::EMPTY;
 
-        for x in arr.iter(){
-            if *x as usize >= EIGHT{return None;}
-            if !indexes_found.insert_const(*x as u32){
+        for x in arr.iter() {
+            if *x as usize >= EIGHT {
+                return None;
+            }
+            if !indexes_found.insert_const(*x as u32) {
                 return None;
             }
         }
@@ -125,7 +126,7 @@ impl GraphPermutation8 {
                 }
             }
 
-            return Some(max_index);
+            Some(max_index)
         }
 
         let mut swaps = Swap::ARRAY8;
@@ -153,9 +154,8 @@ impl GraphPermutation8 {
 
     pub fn all_for_n_elements(
         n: usize,
-    ) -> impl Iterator<Item = Self> + ExactSizeIterator + DoubleEndedIterator + FusedIterator + Clone
-    {
-        (0..FACTORIALS[n]).into_iter().map(|x| Self(x))
+    ) -> impl ExactSizeIterator<Item = Self> + DoubleEndedIterator + FusedIterator + Clone {
+        (0..FACTORIALS[n]).map(Self)
     }
 
     /// Get the complete array of this permutation's elements
@@ -188,7 +188,7 @@ impl GraphPermutation8 {
         if inverse == arr {
             return *self;
         }
-        return Self::calculate_unchecked(&mut inverse).unwrap();
+        Self::calculate_unchecked(&mut inverse).unwrap()
     }
 
     /// Generate the cycle with this permutation as the operator
@@ -307,7 +307,7 @@ mod test {
         let mut data = String::new();
         let arr = [0, 1, 2, 3, 4];
         for perm in GraphPermutation8::all_for_n_elements(5) {
-            let mut arr = arr.clone();
+            let mut arr = arr;
             perm.apply_to_slice(&mut arr);
             use std::fmt::Write;
             writeln!(data, "{}", arr.into_iter().join(",")).unwrap();
@@ -352,12 +352,12 @@ mod test {
     #[test]
     pub fn test_calculate_unchecked() {
         fn test_calculate_roundtrip(arr: &[u8]) {
-            let mut vec1 = Vec::from_iter(arr.into_iter().copied());
+            let mut vec1 = Vec::from_iter(arr.iter().copied());
 
             let perm = GraphPermutation8::calculate_unchecked(&mut vec1)
                 .expect("Should be able to calculate permutation");
 
-            let mut slice = (0u8..8).into_iter().take(arr.len()).collect::<Vec<_>>();
+            let mut slice = (0u8..8).take(arr.len()).collect::<Vec<_>>();
 
             perm.apply_to_slice(&mut slice);
 
@@ -419,8 +419,8 @@ mod test {
 
     #[test]
     pub fn test_small_swaps() {
-        let mut arr = [0,1,2,3,4,5,6,7];
-        for perm in GraphPermutation8::SWAP_0_N.iter(){
+        let mut arr = [0, 1, 2, 3, 4, 5, 6, 7];
+        for perm in GraphPermutation8::SWAP_0_N.iter() {
             perm.apply_to_slice(&mut arr);
         }
 

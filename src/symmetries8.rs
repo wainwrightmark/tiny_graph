@@ -18,16 +18,19 @@ static EMPTY: LazyLock<Symmetries8> = LazyLock::new(|| Symmetries8 {
 });
 
 impl Symmetries8 {
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.symmetries.is_empty()
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.symmetries.len()
     }
 
-    pub fn as_slice(&self)-> &[GraphPermutation8]{
-        &self.symmetries.as_slice()
+    #[inline]
+    pub fn as_slice(&self) -> &[GraphPermutation8] {
+        self.symmetries.as_slice()
     }
 
     pub fn new(graph: &Graph8) -> Self {
@@ -56,21 +59,21 @@ impl Symmetries8 {
             BTreeSet::<GraphPermutation8>::from_iter([GraphPermutation8::IDENTITY]);
 
         for permutation in GraphPermutation8::all_for_n_elements(graph.active_nodes()) {
-            if graph.is_unchanged_under_permutation(permutation) {
-                if all_symmetries.insert(permutation) {
-                    for c in permutation
-                        .generate_cycle()
-                        .take_while(|x| !x.is_identity())
-                    {
-                        all_symmetries.insert(c);
-                        for d in disjoint_symmetries.iter() {
-                            let combined = c.combine(&d);
-                            all_symmetries.insert(combined);
-                        }
+            if graph.is_unchanged_under_permutation(permutation)
+                && all_symmetries.insert(permutation)
+            {
+                for c in permutation
+                    .generate_cycle()
+                    .take_while(|x| !x.is_identity())
+                {
+                    all_symmetries.insert(c);
+                    for d in disjoint_symmetries.iter() {
+                        let combined = c.combine(d);
+                        all_symmetries.insert(combined);
                     }
-
-                    disjoint_symmetries.push(permutation);
                 }
+
+                disjoint_symmetries.push(permutation);
             }
         }
 
@@ -84,27 +87,28 @@ impl Symmetries8 {
     }
 }
 
-
 #[cfg(test)]
 
-mod tests{
+mod tests {
     use std::str::FromStr;
 
     use itertools::Itertools;
 
     use crate::graph8::Graph8;
 
-
     #[test]
-    pub fn test_graph_symmetries(){
+    pub fn test_graph_symmetries() {
         let graph = Graph8::from_str("01,02,12,13,23").unwrap();
 
         let symmetries = graph.get_symmetries();
 
-        let symmetries_string = symmetries.as_slice().into_iter().map(|x|x.get_array().into_iter().join(",")).join("\n");
+        let symmetries_string = symmetries
+            .as_slice()
+            .iter()
+            .map(|x| x.get_array().into_iter().join(","))
+            .join("\n");
 
         //Swap elements 1 and 2 or Swap elements 0 and 3
         assert_eq!(symmetries_string, "0,2,1,3,4,5,6,7\n3,1,2,0,4,5,6,7")
-
     }
 }

@@ -46,7 +46,10 @@ impl Iterator for GraphPathIter {
                 continue;
             };
 
-            let next_options = self.graph.adjacencies(next_index as usize).with_except(&self.used);
+            let next_options = self
+                .graph
+                .adjacencies(next_index as usize)
+                .with_except(&self.used);
 
             let next_tile_index = NodeIndex(next_index as u8);
 
@@ -146,7 +149,8 @@ mod tests {
         let paths: BTreeSet<_> = Graph8::ALL.iter_paths().map(|x| x.to_string()).collect();
 
         // (8C8 * 8!) + (8C7 * 7!) etc
-        const EXPECTED_COUNT: usize = (1 * 40320) + (8 * 5040) + (28 * 720) + (56 * 120) + (70 * 24) + (56 * 6) + (28 * 2) + (1 * 8);
+        const EXPECTED_COUNT: usize =
+            40320 + (8 * 5040) + (28 * 720) + (56 * 120) + (70 * 24) + (56 * 6) + (28 * 2) + 8;
 
         assert_eq!(paths.len(), EXPECTED_COUNT)
     }

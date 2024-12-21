@@ -4,21 +4,25 @@ pub mod graph_path_iter;
 pub mod graph_permutation8;
 pub mod symmetries8;
 
-pub (crate) const EIGHT: usize = 8;
+pub(crate) const EIGHT: usize = 8;
 
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeIndex(pub(crate) u8);
 
-impl NodeIndex{
-    pub const fn inner_usize(self)-> usize{
+impl NodeIndex {
+    #[inline]
+    pub const fn inner_usize(self) -> usize {
         self.0 as usize
     }
 
-    pub const fn inner(self)-> u8{
-        self.0 as u8
+    #[inline]
+    pub const fn inner(self) -> u8 {
+        self.0
     }
 
-    pub const fn from_inner(inner: u8)-> Self{
+    #[inline]
+    pub const fn from_inner(inner: u8) -> Self {
         Self(inner)
     }
 }
@@ -28,7 +32,6 @@ impl From<u8> for NodeIndex {
         Self(value)
     }
 }
-
 
 impl std::fmt::Display for NodeIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
