@@ -162,10 +162,12 @@ impl Graph8 {
 
     #[inline]
     pub const fn apply_permutation(&mut self, permutation: GraphPermutation8) {
-        let swaps = permutation.swaps_array();
+        let mut swaps_iter = crate::graph_permutation8::SwapsIter8::new(&permutation);
+
         let mut index = 0;
-        while index < swaps.len() {
-            self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
+
+        while let Some(next) = swaps_iter.next_const() {
+            self.swap_nodes(NodeIndex(index as u8), NodeIndex(next.index));
             index += 1;
         }
     }

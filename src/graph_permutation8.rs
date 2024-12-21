@@ -46,18 +46,12 @@ impl GraphPermutation8 {
     }
 
     pub const fn swaps(self) -> impl Clone + FusedIterator<Item = Swap> {
-        SwapsIter8 {
-            inner: self.0,
-            index: NonZeroU8::MIN,
-        }
+        SwapsIter8::new(&self)
     }
 
     pub const fn swaps_array(&self) -> [Swap; EIGHT] {
         let mut swaps = Swap::ARRAY8;
-        let mut swaps_iter = SwapsIter8 {
-            inner: self.0,
-            index: NonZeroU8::MIN,
-        };
+        let mut swaps_iter = SwapsIter8::new(&self);
         let mut i = 0;
 
         while let Some(swap) = swaps_iter.next_const() {
@@ -216,12 +210,6 @@ const FACTORIALS: [u16; 9] = {
     arr
 };
 
-#[derive(Debug, Clone, PartialEq)]
-struct SwapsIter8 {
-    index: NonZeroU8,
-    inner: u16,
-}
-
 /// A swap of two elements.
 /// Swaps are delivered in a sequence. The nth swap should be swapped with element `index`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -247,6 +235,12 @@ impl Swap {
     ];
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SwapsIter8 {
+    index: NonZeroU8,
+    inner: u16,
+}
+
 impl std::iter::FusedIterator for SwapsIter8 {}
 
 impl std::iter::Iterator for SwapsIter8 {
@@ -257,8 +251,15 @@ impl std::iter::Iterator for SwapsIter8 {
     }
 }
 
-impl SwapsIter8{
-    pub const fn next_const(&mut self)-> Option<Swap>{
+impl SwapsIter8 {
+    pub const fn new(permutation: &GraphPermutation8) -> Self {
+        Self {
+            index: std::num::NonZeroU8::MIN,
+            inner: permutation.0,
+        }
+    }
+
+    pub const fn next_const(&mut self) -> Option<Swap> {
         if self.inner == 0 {
             return None;
         }
