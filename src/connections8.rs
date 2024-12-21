@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet32, BitSet8};
+use const_sized_bit_set::BitSet32;
 
 use crate::{graph8::Graph8, NodeIndex};
 
@@ -86,23 +86,23 @@ impl Connections8 {
     }
 
     #[inline]
-    pub fn from_graph(graph: &Graph8) -> Self {
-        //todo const
-        let mut bits_used: u32 = 0;
+    pub const fn from_graph(graph: &Graph8) -> Self {
+        let mut mask = 1u64;
+        let mut graph_inner = graph.inner.inner_const() >> 8;
+        let mut bits_used = 0;
+
         let mut set = 0u32;
-        for index in 1..graph.active_nodes() {
-            let mut adj = graph.adjacencies(index);
-            adj.intersect_with_const(&BitSet8::from_first_n_const(index as u32));
-
-            let mut adj = adj.inner_const() as u32;
-
-            adj <<= bits_used;
+        while graph_inner > 0 {
+            let adj = ((graph_inner & mask) as u32) << bits_used;
             set |= adj;
-            bits_used += index as u32;
+
+            graph_inner >>= 8;
+            bits_used += mask.count_ones();
+            mask = (mask * 2) + 1;
         }
 
         Self {
-            set: BitSet32::from_inner(set),
+            set: BitSet32::from_inner_const(set),
         }
     }
 

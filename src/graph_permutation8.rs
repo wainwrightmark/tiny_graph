@@ -52,11 +52,17 @@ impl GraphPermutation8 {
         }
     }
 
-    pub fn swaps_array(&self) -> [Swap; EIGHT] {
+    pub const fn swaps_array(&self) -> [Swap; EIGHT] {
         let mut swaps = Swap::ARRAY8;
+        let mut swaps_iter = SwapsIter8 {
+            inner: self.0,
+            index: NonZeroU8::MIN,
+        };
+        let mut i = 0;
 
-        for (i, swap) in self.swaps().enumerate() {
+        while let Some(swap) = swaps_iter.next_const() {
             swaps[i] = swap;
+            i += 1;
         }
         swaps
     }
@@ -247,6 +253,12 @@ impl std::iter::Iterator for SwapsIter8 {
     type Item = Swap;
 
     fn next(&mut self) -> Option<Self::Item> {
+        self.next_const()
+    }
+}
+
+impl SwapsIter8{
+    pub const fn next_const(&mut self)-> Option<Swap>{
         if self.inner == 0 {
             return None;
         }

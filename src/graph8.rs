@@ -153,19 +153,20 @@ impl Graph8 {
     }
 
     #[inline]
-    pub fn is_unchanged_under_permutation(&self, permutation: GraphPermutation8) -> bool {
-        let mut clone = self.clone();
+    pub const fn is_unchanged_under_permutation(&self, permutation: GraphPermutation8) -> bool {
+        let mut clone = Graph8 { inner: self.inner };
         //todo is there a faster way?
         clone.apply_permutation(permutation);
-        self == &clone
+        self.inner.inner_const() == clone.inner.inner_const()
     }
 
     #[inline]
-    pub fn apply_permutation(&mut self, permutation: GraphPermutation8) {
-        for (index, swap) in permutation.swaps().enumerate() {
-            let index = index as u8;
-            let other_index = swap.index;
-            self.swap_nodes(NodeIndex(index), NodeIndex(other_index));
+    pub const fn apply_permutation(&mut self, permutation: GraphPermutation8) {
+        let swaps = permutation.swaps_array();
+        let mut index = 0;
+        while index < swaps.len() {
+            self.swap_nodes(NodeIndex(index as u8), NodeIndex(swaps[index].index));
+            index += 1;
         }
     }
 
@@ -367,7 +368,7 @@ impl Graph8 {
     }
 
     #[inline]
-    pub fn to_connection_set(&self) -> Connections8 {
+    pub const fn to_connection_set(&self) -> Connections8 {
         Connections8::from_graph(self)
     }
 
