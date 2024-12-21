@@ -1,6 +1,9 @@
+use const_sized_bit_set::BitSet8;
+
 use crate::EIGHT;
 use std::{iter::FusedIterator, num::NonZeroU8};
 
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GraphPermutation8(u16);
 
@@ -93,6 +96,21 @@ impl GraphPermutation8 {
             inner += diff * multiplier;
         }
         Some(Self(inner))
+    }
+
+    /// Try to calculate a permutation from an array
+    /// The elements of the array must be distinct and all less than or equal to 8
+    pub fn calculate(arr: &mut [u8])-> Option<Self>{
+        let mut indexes_found = BitSet8::EMPTY;
+
+        for x in arr.iter(){
+            if *x as usize >= EIGHT{return None;}
+            if !indexes_found.insert_const(*x as u32){
+                return None;
+            }
+        }
+
+        Self::calculate_unchecked(arr)
     }
 
     pub(crate) fn calculate_unchecked(mut arr: &mut [u8]) -> Option<Self> {

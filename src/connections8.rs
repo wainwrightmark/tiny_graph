@@ -83,7 +83,7 @@ impl Connections8 {
         let mut bits_used: u32 = 0;
         let mut set = 0u32;
         for index in 1..graph.active_nodes() {
-            let mut adj = graph.adjacencies[index];
+            let mut adj = graph.adjacencies(index);
             adj.intersect_with_const(&BitSet8::from_first_n_const(index as u32));
 
             let mut adj = adj.inner_const() as u32;

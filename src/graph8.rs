@@ -4,12 +4,11 @@ use std::iter::FusedIterator;
 
 use std::collections::BTreeMap;
 use std::num::ParseIntError;
-use std::ops::Deref;
 use std::str::FromStr;
 use std::{u32, u8};
 
 use const_sized_bit_set::bit_set_trait::BitSetTrait;
-use const_sized_bit_set::BitSet8;
+use const_sized_bit_set::{BitSet64, BitSet8};
 
 use crate::connections8::Connections8;
 use crate::graph_path_iter::{GraphPath8, GraphPathIter};
@@ -20,78 +19,62 @@ use crate::{NodeIndex, EIGHT};
 /// A graph with up to 8 nodes
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Graph8 {
-    pub(crate) adjacencies: [BitSet8; EIGHT], //todo refactor and just use a u64
+    pub(crate) inner: BitSet64,
 }
 
-impl Deref for Graph8 {
-    type Target = [BitSet8; EIGHT];
+// impl Deref for Graph8 {
+//     type Target = [BitSet8; EIGHT];
 
-    fn deref(&self) -> &Self::Target {
-        &self.adjacencies
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.adjacencies
+//     }
+// }
 
 impl Graph8 {
     pub const EMPTY: Self = Self {
-        adjacencies: [BitSet8::EMPTY; EIGHT],
+        inner: BitSet64::EMPTY,
     };
 
-    pub const ALL: Self = {
-        let mut adjacencies = [BitSet8::ALL; EIGHT];
-        let mut index = 0;
-        while index < EIGHT {
-            adjacencies[index].remove_const(index as u32);
-            index += 1;
-        }
-        Self { adjacencies }
+    pub const ALL: Self = Self {
+        inner: BitSet64::from_inner_const(0x7fbfdfeff7fbfdfe),
     };
 
     /// A graph is not valid if any of its nodes are connected to themselves
     pub const fn is_valid(&self) -> bool {
-        let mut index = 0usize;
-        while index < EIGHT {
-            if self.adjacencies[index].contains_const(index as u32) {
-                return false;
-            }
-            index += 1;
-        }
-
-        true
+        self.inner.is_subset_const(&Self::ALL.inner)
     }
 
     pub const fn fully_connected(n: usize) -> Self {
-        let mut adjacencies = [BitSet8::EMPTY; EIGHT];
-        let mut index = 0;
-        while index < n {
-            adjacencies[index] = BitSet8::from_first_n_const(n as u32);
-            adjacencies[index].remove_const(index as u32);
-            index += 1;
+        const FC: [u64; 9] = [
+            0x0,
+            0x0, //One fully connected node still has no connections
+            0x102,
+            0x30506,
+            0x70b0d0e,
+            0xf171b1d1e,
+            0x1f2f373b3d3e,
+            0x3f5f6f777b7d7e,
+            0x7fbfdfeff7fbfdfe,
+        ];
+
+        Self {
+            inner: BitSet64::from_inner_const(FC[n]),
         }
-        Self { adjacencies }
     }
 
-    pub const fn from_adjacencies_unchecked(adjacencies: [BitSet8; EIGHT]) -> Self {
-        Self { adjacencies }
+    pub const fn from_inner_unchecked(inner: BitSet64) -> Self {
+        Self { inner }
     }
 
     pub const fn insert(&mut self, a: NodeIndex, b: NodeIndex) {
-        self.adjacencies[a.0 as usize].insert_const(b.0 as u32);
-        self.adjacencies[b.0 as usize].insert_const(a.0 as u32);
+        self.inner.insert_const(((a.0 * 8) + b.0) as u32);
+        self.inner.insert_const(((b.0 * 8) + a.0) as u32);
     }
 
     /// The number of active nodes.
     /// A node is active if it has connections or if a node with greater index has connections
     pub const fn active_nodes(&self) -> usize {
-        let mut active_nodes = EIGHT;
-
-        while let Some(i) = active_nodes.checked_sub(1) {
-            if self.adjacencies[i].eq_const(&BitSet8::EMPTY) {
-                active_nodes = i;
-            } else {
-                return active_nodes;
-            }
-        }
-        return 0;
+        8 - (self.inner.inner_const().leading_zeros() as usize / 8)
     }
 
     /// Return an iterator of permutations that map `sub` to a subgraph of `self`
@@ -114,17 +97,7 @@ impl Graph8 {
 
     ///Is this a super graph of a subgraph
     pub const fn is_super_graph(&self, subgraph: &Self) -> bool {
-        let mut index = 0;
-        while index < EIGHT {
-            let self_adjacencies = self.adjacencies[index];
-            let subgraph_adjacencies = subgraph.adjacencies[index];
-
-            if !subgraph_adjacencies.is_subset_const(&self_adjacencies) {
-                return false;
-            }
-            index += 1;
-        }
-        return true;
+        self.inner.is_superset_const(&subgraph.inner)
     }
 
     /// Whether this could be a super graph based numbers of connections
@@ -135,12 +108,12 @@ impl Graph8 {
             total_connections: u32,
         }
 
-        fn calculate_counts(sets: &[BitSet8]) -> Counts {
+        fn calculate_counts(sets: &[u8]) -> Counts {
             let mut min_connections: u32 = u32::MAX;
             let mut max_connections: u32 = 0;
             let mut total_connections: u32 = 0;
             for x in sets {
-                let c = x.len_const();
+                let c = x.count_ones();
                 total_connections += c;
                 min_connections = min_connections.min(c);
                 max_connections = max_connections.max(c);
@@ -153,8 +126,8 @@ impl Graph8 {
             }
         }
 
-        let self_counts = calculate_counts(&self.adjacencies);
-        let subgraph_counts = calculate_counts(&subgraph.adjacencies);
+        let self_counts = calculate_counts(&self.inner.inner_const().to_ne_bytes());
+        let subgraph_counts = calculate_counts(&subgraph.inner.inner_const().to_ne_bytes());
 
         match self_counts
             .total_connections
@@ -174,13 +147,8 @@ impl Graph8 {
 
     pub fn is_unchanged_under_permutation(&self, permutation: GraphPermutation8) -> bool {
         let mut clone = self.clone();
-        for (index, swap) in permutation.swaps().enumerate() {
-            let other_index = swap.index as usize;
-            if self.adjacencies[index].len_const() != self.adjacencies[other_index].len_const() {
-                return false;
-            }
-            clone.swap_nodes(NodeIndex(index as u8), NodeIndex(other_index as u8));
-        }
+        //todo is there a faster way?
+        clone.apply_permutation(permutation);
         self == &clone
     }
 
@@ -208,11 +176,14 @@ impl Graph8 {
                 None
             };
         };
-        let last_adj_count = other.adjacencies[last_index].len_const();
+        let last_adj_count = other.adjacencies(last_index).len_const();
 
         stack[last_index] = BitSet8::from_iter(
-            self.adjacencies
+            self.inner
+                .inner_const()
+                .to_le_bytes()
                 .iter()
+                .map(|x| BitSet8::from_inner_const(*x))
                 .enumerate()
                 .filter(|(_index, set)| set.len_const() == last_adj_count)
                 .map(|x| x.0 as u32),
@@ -256,14 +227,17 @@ impl Graph8 {
                 return GraphPermutation8::try_from_swaps_arr(swaps);
             };
 
-            let other_adj = other.adjacencies[next_index];
+            let other_adj = other.adjacencies(next_index);
             let other_adj_count = other_adj.len_const();
             let last_n = BitSet8::from_first_n_const(index as u32).with_negated();
             let other_intersect_last_n = other_adj.with_intersect(&last_n);
 
             let possible_swaps = BitSet8::from_iter(
-                self.adjacencies
+                self.inner
+                    .inner_const()
+                    .to_le_bytes()
                     .iter()
+                    .map(|x| BitSet8::from_inner_const(*x))
                     .enumerate()
                     .take(next_index + 1)
                     .filter(|(_index, set)| {
@@ -277,6 +251,10 @@ impl Graph8 {
 
             index = next_index;
         }
+    }
+
+    pub fn adjacencies(&self, index: usize) -> BitSet8 {
+        BitSet8::from_inner_const(self.inner.inner_const().to_le_bytes()[index])
     }
 
     /// Finds the minimum connections set
@@ -298,7 +276,7 @@ impl Graph8 {
             //check frozen bits to find referenced sets
             for frozen_index in (unfrozen..8).rev() {
                 // The set of nodes which are not connected to this frozen node
-                let ai = graph.adjacencies[frozen_index as usize].with_negated();
+                let ai = graph.adjacencies(frozen_index as usize).with_negated();
                 let p = possibles.with_intersect(&ai);
 
                 if !p.is_empty() {
@@ -310,7 +288,7 @@ impl Graph8 {
             }
 
             //find things with the fewest elements
-            possibles = possibles.min_set_by_key(|x| graph.adjacencies[x as usize].len());
+            possibles = possibles.min_set_by_key(|x| graph.adjacencies(x as usize).len());
 
             possibles
         }
@@ -359,19 +337,27 @@ impl Graph8 {
     }
 
     #[inline]
-    pub fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
-        //todo use a u64 and make more efficient
-        if i.0 == j.0 {
-            return;
-        }
+    pub const fn swap_nodes(&mut self, i: NodeIndex, j: NodeIndex) {
+        let i = i.0 as u32;
+        let j = j.0 as u32;
+        let mut inner = self.inner.inner_const();
+        let mask1: u64 = 0xff;
+        let i_masked1 = (inner >> (i * 8)) & mask1;
+        let j_masked1 = (inner >> (j * 8)) & mask1;
+        let x1 = i_masked1 ^ j_masked1;
 
-        self.adjacencies.swap(i.0 as usize, j.0 as usize);
+        inner ^= x1 << (i * 8);
+        inner ^= x1 << (j * 8);
 
-        let mut index = 0;
-        while index < EIGHT {
-            self.adjacencies[index].swap_bits_const(i.0 as u32, j.0 as u32);
-            index += 1;
-        }
+        let mask2: u64 = 0x101010101010101;
+        let i_masked2 = (inner >> i) & mask2;
+        let j_masked2 = (inner >> j) & mask2;
+        let x2 = i_masked2 ^ j_masked2;
+
+        inner ^= x2 << i;
+        inner ^= x2 << j;
+
+        self.inner = BitSet64::from_inner_const(inner)
     }
 
     #[inline]
@@ -383,36 +369,38 @@ impl Graph8 {
     /// Counts connections between nodes.
     /// Each connection is effectively counted twice - once in each direction
     pub const fn count_connections(&self) -> u32 {
-        let mut total = 0u32;
-        let mut index = 0;
-        while index < EIGHT {
-            let adj = self.adjacencies[index];
-            total += adj.len_const();
-            index += 1;
-        }
-
-        total
+        self.inner.len_const()
     }
 
     #[must_use]
     pub const fn negate(&self) -> Self {
-        let mut adjacencies: [BitSet8; EIGHT] = self.adjacencies;
-
-        let mut index = 0;
-        while index < EIGHT {
-            adjacencies[index].negate_const();
-            adjacencies[index].remove_const(index as u32);
-            index += 1;
-        }
-
-        Self { adjacencies }
+        let mut inner = self.inner;
+        inner.negate_const();
+        inner.intersect_with_const(&Self::ALL.inner);
+        Self { inner }
     }
 
     /// Remove all connections to a particular node
     pub const fn remove(&mut self, index: usize) {
-        while let Some(other) = self.adjacencies[index].pop_const() {
-            self.adjacencies[other as usize].remove_const(index as u32);
-        }
+        const MASKS: [BitSet64; 8] = {
+            let mut masks = [BitSet64::EMPTY; 8];
+
+            let mask_a: u64 = 0xff;
+            let mask_b: u64 = 0x101010101010101;
+
+            let mut index = 0;
+            while index < EIGHT {
+                let mask_a_shifted = mask_a << (index as u32 * 8);
+                let mask_b_shifted = mask_b << (index as u32);
+                let inner = !(mask_a_shifted ^ mask_b_shifted);
+                masks[index] = BitSet64::from_inner_const(inner);
+                index += 1
+            }
+
+            masks
+        };
+
+        self.inner.intersect_with_const(&MASKS[index]);
     }
 
     /// Iterate through graph paths.
@@ -434,15 +422,18 @@ impl Graph8 {
 impl Display for Graph8 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
-        for (index, adjacencies) in self.adjacencies.iter().enumerate() {
-            for other in adjacencies.into_iter().skip_while(|x| *x <= index as u32) {
+
+        for x in self.inner.into_iter() {
+            let a = x / 8;
+            let b = x % 8;
+            if a < b {
                 use std::fmt::Write;
                 if first {
                     first = false
                 } else {
                     f.write_char(',')?;
                 }
-                write!(f, "{index}{other}")?;
+                write!(f, "{a}{b}")?;
             }
         }
 
@@ -473,9 +464,10 @@ impl FromStr for Graph8 {
 
 #[cfg(test)]
 mod tests {
+    use const_sized_bit_set::{bit_set_trait::BitSetTrait, BitSet64};
     use itertools::Itertools;
 
-    use super::{Graph8, EIGHT};
+    use super::Graph8;
     use crate::{graph_permutation8::GraphPermutation8, NodeIndex};
     use std::str::FromStr;
 
@@ -650,9 +642,7 @@ mod tests {
 
     #[test]
     fn test_is_valid() {
-        let mut adj = [const_sized_bit_set::BitSet8::EMPTY; EIGHT];
-        adj[1].insert_const(1);
-        let g1 = Graph8::from_adjacencies_unchecked(adj);
+        let g1 = Graph8::from_inner_unchecked(BitSet64::EMPTY.with_inserted(9));
 
         assert!(!g1.is_valid())
     }

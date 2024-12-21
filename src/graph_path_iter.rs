@@ -46,7 +46,7 @@ impl Iterator for GraphPathIter {
                 continue;
             };
 
-            let next_options = self.graph.adjacencies[next_index as usize].with_except(&self.used);
+            let next_options = self.graph.adjacencies(next_index as usize).with_except(&self.used);
 
             let next_tile_index = NodeIndex(next_index as u8);
 
