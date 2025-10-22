@@ -7,8 +7,12 @@ use const_sized_bit_set::BitSet32;
 
 use crate::{graph8::Graph8, NodeIndex};
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 #[must_use]
 #[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq, Ord, Hash, Default)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct Connections8 {
     set: BitSet32,
 }

@@ -2,8 +2,12 @@ use const_sized_bit_set::BitSet8;
 use crate::{EIGHT};
 use std::{iter::FusedIterator, num::NonZeroU8};
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct GraphPermutation8(u16);
 
 impl GraphPermutation8 {

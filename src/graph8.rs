@@ -15,8 +15,12 @@ use crate::graph_permutation8::{GraphPermutation8, Swap};
 use crate::symmetries8::Symmetries8;
 use crate::{NodeIndex, EIGHT};
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 /// A graph with up to 8 nodes
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 #[must_use]
 pub struct Graph8 {
     pub(crate) inner: BitSet64,

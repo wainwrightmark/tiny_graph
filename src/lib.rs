@@ -5,11 +5,15 @@ pub mod graph_permutation8;
 pub mod symmetries8;
 pub mod graph_permutation14;
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 pub(crate) const EIGHT: usize = 8;
 pub(crate) const FOURTEEN: usize = 14;
 
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct NodeIndex(pub(crate) u8);
 
 impl NodeIndex {

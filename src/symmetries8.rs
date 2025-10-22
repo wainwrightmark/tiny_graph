@@ -6,9 +6,13 @@ use std::{
 
 use crate::{connections8::Connections8, graph8::Graph8, graph_permutation8::GraphPermutation8};
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 /// Set of disjoint symmetries for a graph.
 /// Does not include the identity symmetry
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct Symmetries8 {
     symmetries: Vec<GraphPermutation8>,
 }

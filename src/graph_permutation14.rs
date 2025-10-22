@@ -2,10 +2,14 @@ use crate::{graph_permutation8::Swap, FOURTEEN};
 use const_sized_bit_set::BitSet16;
 use std::{iter::FusedIterator, num::NonZeroU8};
 
+#[cfg(any(test, feature = "serde"))]
+use serde::{Deserialize, Serialize};
+
 
 /// Graph permutation of up to 14 elements
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct GraphPermutation14(u64);
 
 impl GraphPermutation14 {
