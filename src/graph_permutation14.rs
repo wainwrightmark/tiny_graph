@@ -12,6 +12,12 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
 pub struct GraphPermutation14(u64);
 
+impl Default for GraphPermutation14 {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
 impl GraphPermutation14 {
     /// The identity permutation which does nothing
     pub const IDENTITY: GraphPermutation14 = GraphPermutation14(0);
