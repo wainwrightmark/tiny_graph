@@ -174,7 +174,7 @@ impl Graph8 {
 
     #[inline]
     pub fn get_symmetries(&self) -> Symmetries8 {
-        Symmetries8::new(self)
+        Symmetries8::new_cached(self)
     }
 
     #[inline]

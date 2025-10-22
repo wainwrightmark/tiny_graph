@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, LazyLock},
+    sync::LazyLock,
 };
 
 use crate::{connections8::Connections8, graph8::Graph8, graph_permutation8::GraphPermutation8};
@@ -10,11 +10,11 @@ use crate::{connections8::Connections8, graph8::Graph8, graph_permutation8::Grap
 /// Does not include the identity symmetry
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symmetries8 {
-    symmetries: Arc<Vec<GraphPermutation8>>,
+    symmetries: Vec<GraphPermutation8>,
 }
 
 static EMPTY: LazyLock<Symmetries8> = LazyLock::new(|| Symmetries8 {
-    symmetries: Arc::new(Vec::new()),
+    symmetries: Vec::new(),
 });
 
 impl Symmetries8 {
@@ -33,7 +33,7 @@ impl Symmetries8 {
         self.symmetries.as_slice()
     }
 
-    pub fn new(graph: &Graph8) -> Self {
+    pub fn new_cached(graph: &Graph8) -> Self {
         thread_local! {
             static CACHE: RefCell<BTreeMap<Connections8, Symmetries8>>  = const{RefCell::new(BTreeMap::new())}  ;
         }
@@ -82,7 +82,7 @@ impl Symmetries8 {
         }
 
         Self {
-            symmetries: Arc::new(disjoint_symmetries),
+            symmetries: disjoint_symmetries,
         }
     }
 }

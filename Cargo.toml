@@ -10,4 +10,4 @@ const_sized_bit_set = "0.3.0"
 
 [dev-dependencies]
 insta = "1"
-itertools = "0.13"
+itertools = "0.14"
