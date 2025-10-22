@@ -1,15 +1,18 @@
-use crate::{graph_permutation8::Swap, FOURTEEN};
+use crate::{graph_permutation8::Swap, util, FOURTEEN};
 use const_sized_bit_set::BitSet16;
 use std::{iter::FusedIterator, num::NonZeroU8};
 
 #[cfg(any(test, feature = "serde"))]
 use serde::{Deserialize, Serialize};
 
-
 /// Graph permutation of up to 14 elements
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(any(test, feature = "serde"), derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(
+    any(test, feature = "serde"),
+    derive(Serialize, Deserialize),
+    serde(transparent)
+)]
 pub struct GraphPermutation14(u64);
 
 impl Default for GraphPermutation14 {
@@ -125,24 +128,10 @@ impl GraphPermutation14 {
         Self::calculate_unchecked(arr)
     }
 
-    pub(crate) fn calculate_unchecked(mut arr: &mut [u8]) -> Option<Self> {
-        fn position_max(arr: &[u8]) -> Option<usize> {
-            let mut max = *arr.first()?;
-            let mut max_index = 0;
-
-            for (x, item) in arr.iter().copied().enumerate().skip(1) {
-                if item > max {
-                    max = item;
-                    max_index = x;
-                }
-            }
-
-            Some(max_index)
-        }
-
+    pub(crate) const fn calculate_unchecked(mut arr: &mut [u8]) -> Option<Self> {
         let mut swaps = Swap::array_n();
 
-        while let Some(max_index) = position_max(arr) {
+        while let Some(max_index) = crate::util::position_max(arr) {
             let index = arr.len() - 1;
             swaps[index] = Swap {
                 index: max_index as u8,
@@ -157,9 +146,12 @@ impl GraphPermutation14 {
         Self::try_from_swaps_arr(swaps)
     }
 
-    pub fn apply_to_slice<T>(self, arr: &mut [T]) {
-        for (index, swap) in self.swaps().enumerate() {
+    pub const fn apply_to_slice<T>(self, arr: &mut [T]) {
+        let mut swaps = SwapsIter14::new(&self);
+        let mut index = 0;
+        while let Some(swap) = swaps.next_const() {
             swap.apply(index, arr);
+            index += 1;
         }
     }
 
@@ -170,8 +162,8 @@ impl GraphPermutation14 {
     }
 
     /// Get the complete array of this permutation's elements
-    pub fn get_array(&self) -> [u8; 8] {
-        let mut arr = [0, 1, 2, 3, 4, 5, 6, 7];
+    pub const fn get_array(&self) -> [u8; FOURTEEN] {
+        let mut arr = const { util::indexes_array() };
         self.apply_to_slice(&mut arr);
         arr
     }
@@ -190,7 +182,7 @@ impl GraphPermutation14 {
     pub fn invert(&self) -> Self {
         let arr = self.get_array();
 
-        let mut inverse = [0, 1, 2, 3, 4, 5, 6, 7];
+        let mut inverse = util::indexes_array();
 
         for (index, element) in arr.into_iter().enumerate() {
             inverse[element as usize] = index as u8;
@@ -202,10 +194,22 @@ impl GraphPermutation14 {
         Self::calculate_unchecked(&mut inverse).unwrap()
     }
 
-    // /// Generate the cycle with this permutation as the operator
-    // pub fn generate_cycle(self) -> impl Iterator<Item = Self> {
-    //     CyclicGenerator8::from(self)
-    // }
+    /// Moves an existing element to a new index
+    pub fn with_element_moved(self, previous_index: usize, new_index: usize) -> Self {
+        if previous_index == new_index {
+            return self;
+        }
+
+        let mut arr = self.get_array();
+
+        if previous_index < new_index {
+            arr[previous_index..=new_index].rotate_left(1);
+        } else {
+            arr[new_index..=previous_index].rotate_right(1);
+        }
+
+        Self::calculate_unchecked(&mut arr).unwrap()
+    }
 }
 
 const FACTORIALS: [u64; 15] = {
@@ -270,7 +274,7 @@ mod test {
     #[test]
     pub fn test_sequence_for_5_elements() {
         let mut data = String::new();
-        let arr = [0, 1, 2, 3, 4];
+        let arr: [u8; 5] = crate::util::indexes_array();
         for perm in GraphPermutation14::all_for_n_elements(5) {
             let mut arr = arr;
             perm.apply_to_slice(&mut arr);
@@ -351,11 +355,17 @@ mod test {
 
         let perm1_then_2 = perm1.combine(&perm2);
 
-        assert_eq!(perm1_then_2.get_array(), [6, 0, 2, 4, 1, 3, 5, 7]);
+        assert_eq!(
+            perm1_then_2.get_array(),
+            [6, 0, 2, 4, 1, 3, 5, 7, 8, 9, 10, 11, 12, 13]
+        );
 
         let perm2_then_1 = perm2.combine(&perm1);
 
-        assert_eq!(perm2_then_1.get_array(), [3, 1, 4, 6, 0, 2, 5, 7]);
+        assert_eq!(
+            perm2_then_1.get_array(),
+            [3, 1, 4, 6, 0, 2, 5, 7, 8, 9, 10, 11, 12, 13]
+        );
     }
 
     #[test]
@@ -370,11 +380,33 @@ mod test {
 
     #[test]
     pub fn test_small_swaps() {
-        let mut arr = [0, 1, 2, 3, 4, 5, 6, 7,8,9,10,11,12,13];
+        let mut arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
         for perm in GraphPermutation14::SWAP_0_N.iter() {
             perm.apply_to_slice(&mut arr);
         }
 
-        assert_eq!(arr, [13, 0, 1, 2, 3, 4, 5, 6,7,8,9,10,11,12])
+        assert_eq!(arr, [13, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    }
+
+    #[test]
+    pub fn test_move_element() {
+        let mut perm = GraphPermutation14::IDENTITY;
+
+        perm = perm.with_element_moved(0, 1);
+        assert_eq!(
+            perm.get_array(),
+            [1, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        );
+
+        perm = perm.with_element_moved(5, 2);
+        assert_eq!(
+            perm.get_array(),
+            [1, 0, 5, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13]
+        );
+        perm = perm.with_element_moved(4, 10);
+        assert_eq!(
+            perm.get_array(),
+            [1, 0, 5, 2, 4, 6, 7, 8, 9, 10, 3, 11, 12, 13]
+        );
     }
 }

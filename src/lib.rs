@@ -4,6 +4,7 @@ pub mod graph_path_iter;
 pub mod graph_permutation8;
 pub mod symmetries8;
 pub mod graph_permutation14;
+pub mod util;
 
 #[cfg(any(test, feature = "serde"))]
 use serde::{Deserialize, Serialize};
