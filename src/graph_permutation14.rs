@@ -194,6 +194,12 @@ impl GraphPermutation14 {
         Self::calculate_unchecked(&mut inverse).unwrap()
     }
 
+    pub fn apply_to_slice_safe<T>(self, arr: &mut [T]) {
+        for (index, swap) in self.swaps().enumerate() {
+            swap.apply_safe(index, arr);
+        }
+    }
+
     /// Moves an existing element to a new index
     pub fn with_element_moved(self, previous_index: usize, new_index: usize) -> Self {
         if previous_index == new_index {

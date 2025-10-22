@@ -141,9 +141,16 @@ impl GraphPermutation8 {
         Self::try_from_swaps_arr(swaps)
     }
 
+    /// Panics if the slice is too long
     pub fn apply_to_slice<T>(self, arr: &mut [T]) {
         for (index, swap) in self.swaps().enumerate() {
             swap.apply(index, arr);
+        }
+    }
+    
+    pub fn apply_to_slice_safe<T>(self, arr: &mut [T]) {
+        for (index, swap) in self.swaps().enumerate() {
+            swap.apply_safe(index, arr);
         }
     }
 
@@ -230,14 +237,16 @@ pub struct Swap {
 }
 
 impl Swap {
-    pub const fn apply<T>(self, index: usize, arr: &mut [T]) {
+    pub const fn apply<T>(self, index: usize, arr: &mut [T]) {        
         arr.swap(self.index as usize, index);
     }
-
     
-    // pub const ARRAY8: [Swap; 8] = Self::array_n();
-
-    // pub const ARRAY14: [Swap; 14] = Self::array_n();
+    pub const fn apply_safe<T>(self, index: usize, arr: &mut [T]) {        
+        if index >= arr.len() || self.index as usize >= arr.len(){
+            return;
+        }
+        arr.swap(self.index as usize, index);
+    }
 
     /// Identity Array mapping each index to itself
     pub const fn array_n<const N: usize>()-> [Swap; N]{
@@ -330,7 +339,7 @@ impl Iterator for CyclicGenerator8 {
 mod test {
     use itertools::Itertools;
 
-    use crate::graph_permutation8::GraphPermutation8;
+    use crate::{graph_permutation8::GraphPermutation8, util};
 
     #[test]
     pub fn test_sequence_for_5_elements() {
@@ -477,5 +486,16 @@ mod test {
             perm.get_array(),
             [1, 0, 5, 2, 4, 6, 7, 3]
         );
+    }
+
+    #[test]
+    pub fn test_on_shorter_slice(){
+        let mut elements: [u8; 5] = util::indexes_array();
+
+        for perm in GraphPermutation8::all_for_n_elements(8){
+            perm.apply_to_slice_safe(&mut elements);
+        }
+
+        assert_eq!(elements, [0,1,2,3,4])
     }
 }
