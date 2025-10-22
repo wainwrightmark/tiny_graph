@@ -3,8 +3,10 @@ pub mod graph8;
 pub mod graph_path_iter;
 pub mod graph_permutation8;
 pub mod symmetries8;
+pub mod graph_permutation14;
 
 pub(crate) const EIGHT: usize = 8;
+pub(crate) const FOURTEEN: usize = 14;
 
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
